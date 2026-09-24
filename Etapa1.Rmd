@@ -290,4 +290,4 @@ Tecnológico de Monterrey. (s. f.). *Actividades de Pasión por la lectura*. htt
 
 UNESCO. (2021, 25 de marzo). *100 million more children under the minimum reading proficiency level due to COVID-19: UNESCO convenes world education ministers*. https://www.unesco.org/en/articles/100-million-more-children-under-minimum-reading-proficiency-level-due-covid-19-unesco-convenes-world
 
-**Código en R:** [PENDIENTE: liga pública al repositorio, p. ej. GitHub, con `Etapa1.Rmd`].
+**Código en R:** https://github.com/vicho-btw/molec-perfiles-lectores
