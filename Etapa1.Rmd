@@ -1,0 +1,293 @@
+---
+title: 'La realidad de la lectura en México: perfiles lectores y su evolución (MOLEC
+  2019–2024)'
+author:
+- "Análisis de métodos matemáticos para la física (Gpo 601)"
+- "Vicente Alonso Gallardo Montalva — A01787981"
+- "Jia-Hong André Kuo Ko — A01179116"
+- "Mauricio Ruiz Junco — A01783698"
+- "Mauricio Orcasitas Fara — A00843564"
+date: "30 de septiembre de 2026"
+output:
+  pdf_document: default
+  word_document:
+    reference_docx: plantilla_word.docx
+fontsize: 11pt
+geometry: margin=2.5cm
+header-includes:
+  - \linespread{1.3}
+  - \renewcommand{\tablename}{Tabla}
+  - \renewcommand{\figurename}{Figura}
+  - \usepackage{etoolbox}
+  - \AtBeginEnvironment{tabular}{\linespread{1}\selectfont}
+  - \AtBeginEnvironment{longtable}{\linespread{1}\selectfont}
+subtitle: Etapa 1. El contexto y el objetivo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 6.5, fig.height = 2.4, dpi = 150)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+library(readxl)
+# En PDF, LaTeX ya antepone "Tabla n:"; en Word el número va en el texto.
+cap <- function(tipo, n, txt) if (knitr::is_latex_output()) txt else paste0(tipo, " ", n, ". ", txt)
+```
+
+```{r lectura}
+# ---- Lectura de todas las bases y diccionarios ----
+# Los CSV vienen en latin1; los nombres se pasan a minúsculas porque algunos
+# años escriben P5_6esp / p5_6esp, etc. El 2019 trae un BOM en la primera columna.
+leer_molec <- function(ruta) {
+  d <- read.csv(ruta, fileEncoding = "latin1", check.names = FALSE)
+  names(d) <- tolower(sub("^﻿|^ï»¿", "", names(d)))
+  d
+}
+leer_dicc <- function(ruta) read.csv(ruta, fileEncoding = "latin1", check.names = FALSE)
+
+M19 <- leer_molec("datos/2019/Datos_molec_2019-1.csv")
+M20 <- leer_molec("datos/2020/Datos_molec_2020-1.csv")
+M21 <- leer_molec("datos/2021/Datos_molec_2021-1.CSV")
+M22 <- leer_molec("datos/2022/Datos_molec_2022-1.CSV")
+M23 <- leer_molec("datos/2023/Datos_molec_2023-1.CSV")
+M24 <- leer_molec("datos/2024/Datos_molec_2024-1.csv")
+M25 <- read.csv("datos/2025/Datos_molec_2025.csv", check.names = FALSE)
+names(M25) <- tolower(names(M25))
+
+Dicc19 <- leer_dicc("datos/2019/Diccionario_molec_2019-1.csv")
+Dicc20 <- leer_dicc("datos/2020/Diccionario_molec_2020-1.csv")
+Dicc21 <- leer_dicc("datos/2021/Diccionario_molec_2021-1.csv")
+Dicc22 <- leer_dicc("datos/2022/Diccionario_molec_2022-1.csv")
+Dicc23 <- leer_dicc("datos/2023/Diccionario_molec_2023-1.csv")
+Dicc24 <- leer_dicc("datos/2024/Diccionario_molec_2024-1.csv")
+Dicc25 <- lapply(setNames(nm = excel_sheets("datos/2025/Diccionario_molec_2025.xlsx")),
+                 function(s) read_excel("datos/2025/Diccionario_molec_2025.xlsx", sheet = s,
+                                        col_names = FALSE, .name_repair = "minimal"))
+
+bases <- list(`2019` = M19, `2020` = M20, `2021` = M21, `2022` = M22,
+              `2023` = M23, `2024` = M24)
+```
+
+```{r cifras-generales}
+comunes <- Reduce(intersect, lapply(bases, names))
+n_total_1924 <- sum(sapply(bases, nrow))
+n25_menores <- sum(M25$edad < 18, na.rm = TRUE)
+tiene_factor25 <- any(grepl("^fac", names(M25)))
+tiene_entidad25 <- "entidad" %in% names(M25)
+```
+
+\newpage
+
+# 1. Revisión bibliográfica
+
+## 1.1 ¿Por qué importa medir la lectura?
+
+Leer no es solo una actividad cultural: es la base de otras habilidades. En la charla que abrió este reto, Fernández Martínez (2025) resume el problema así: en México y en el mundo las personas leen menos y, cuando leen, comprenden menos, y eso tiene consecuencias cognitivas, educativas, laborales y políticas. En lo individual, la lectura frecuente enriquece el lenguaje, la concentración y la imaginación. La evidencia empírica respalda esa relación: en un metaanálisis de 99 estudios (N = 7,669), Mol y Bus (2011) encontraron correlaciones de moderadas a fuertes entre la lectura en el tiempo libre y la comprensión lectora, la lectura técnica y la ortografía, desde preescolar hasta la universidad. Los autores describen una "espiral ascendente": quien comprende mejor lee más y, al leer más, su comprensión mejora con cada año escolar. La espiral también funciona en sentido contrario, lo que explica por qué los rezagos tempranos se acumulan.
+
+En lo social, Fernández Martínez (2025) vincula la baja comprensión lectora con la dificultad para distinguir hechos de opiniones y, por lo tanto, con una mayor vulnerabilidad ante la desinformación y ante los errores de la inteligencia artificial que se copian sin cuestionarse. También la relaciona con la movilidad social: de cada 100 estudiantes que entran a primaria, solo 29 terminan la universidad, y en los estudios de abandono escolar que presentó para Guanajuato y Nuevo León el motivo principal fue académico, no económico. Por eso medir la lectura es de interés ciudadano: sin datos no se puede saber si las políticas de fomento funcionan, a quién deben dirigirse ni cómo evaluarlas.
+
+## 1.2 La situación en el mundo y en México
+
+A nivel mundial, la pandemia empeoró el panorama. Antes de COVID-19 se esperaba que el número de niñas y niños sin habilidades mínimas de lectura bajara de 483 a 460 millones en 2020; en cambio, subió a 584 millones, lo que borró los avances de dos décadas (UNESCO, 2021). La prueba PISA, que evalúa a estudiantes de 15 años, confirma el rezago de México: en PISA 2025 el país obtuvo 408 puntos en lectura, frente a un promedio de 461 en la OCDE, y solo 50% de sus estudiantes alcanzó el nivel 2, el mínimo en el que se identifica la idea principal de un texto de extensión moderada (promedio OCDE: 69%) (OECD, 2026). Según Fernández Martínez, la caída de la lectura también se observa en países como Estados Unidos, pero en México es más grave porque se parte de un nivel que ya era bajo (Grupo Fórmula, 2024).
+
+Ambas mediciones se complementan, pero miden cosas distintas: PISA evalúa la competencia lectora de estudiantes con una prueba estandarizada, mientras que el Módulo sobre Lectura (MOLEC) del INEGI registra los hábitos de lectura de adultos mediante una encuesta en hogares. Su objetivo es "generar información estadística sobre el comportamiento lector de la población de 18 años y más que reside en México en áreas urbanas, con la finalidad de proporcionar datos útiles para conocer las características de la citada población y proporcionar elementos para el fomento de la lectura" (INEGI, 2024). Hasta 2024 se levantó cada febrero en 32 ciudades de 100 mil o más habitantes, una por entidad federativa (INEGI, 2025). Pregunta qué se lee (libros, revistas, periódicos, historietas y páginas de internet), cuánto, con qué motivo y en qué formato, y qué estímulos a la lectura hubo en la infancia, en el hogar y en la escuela. Como señala Fernández Martínez (2025), estas últimas preguntas no son arbitrarias: responden a la hipótesis de que quien creció rodeado de cultura escrita tiene mayor probabilidad (no certeza) de leer por gusto.
+
+Los resultados son preocupantes. La población alfabeta que leyó algún material bajó de 84.2% en 2015 a 69.6% en 2024, una caída de 14.6 puntos porcentuales. En 2024 lo más leído fueron los libros (41.8%), seguidos de las páginas de internet, foros o blogs (39.4%), las revistas (21.7%), los periódicos (17.8%) y las historietas (4.6%). El mismo reporte muestra la huella del hogar: siete de cada diez personas lectoras recordaron que en su casa había libros distintos a los de texto durante la infancia, contra cuatro de cada diez no lectoras (INEGI, 2024).
+
+## 1.3 Causas y dificultades de la medición
+
+Las fuentes consultadas coinciden en tres explicaciones. Primero, el sistema educativo no ha logrado formar el hábito: la lectura es una actividad transversal que requiere un trabajo pedagógico gradual en todas las materias, y, en palabras de Fernández Martínez, "esto no se impone, sino que tienes que ser capaz de despertar el gusto por la lectura desde los primeros años escolares" (Grupo Fórmula, 2024). Segundo, la lectura compite por la atención con las redes sociales y el celular, que acortan los periodos de concentración (Haidt, 2024, citado en Fernández Martínez, 2025); esta misma preocupación por el desplazamiento de los libros por los dispositivos móviles enmarcó el Día Internacional del Libro de 2025 (Puebla Noticias en Sicom, 2025). Tercero, algunas políticas se han diseñado sin evidencia: la ley de precio único del libro se presentó como una medida de fomento, pero, según el análisis del expositor, no hay evidencia de que aumente la lectura y sí de que eleva los precios (Fernández Martínez, 2025).
+
+Medir la lectura también presenta dificultades. MOLEC se basa en el autorreporte, así que la comprensión que registra es autopercibida y no medida, como en PISA. Hasta 2024 solo representó a la población urbana, y en 2025 cambió su cobertura (12 años y más, con representación nacional) y su marco conceptual, lo que según el propio INEGI (2025) "genera una nueva serie de información". El formato también importa: un metaanálisis encontró que la comprensión es menor cuando el mismo texto se lee en pantalla que en papel (Delgado et al., 2018), de modo que el paso a lo digital puede cambiar lo que significa "leer". Por último, se trata de datos observacionales: como advierte Fernández Martínez (2025), correlación no es causalidad, y el análisis debe partir de hipótesis claras y no limitarse a medias y desviaciones estándar.
+
+## 1.4 ¿Se han cumplido los objetivos de MOLEC?
+
+MOLEC ha cumplido su primer objetivo: generar información estadística anual y pública sobre el comportamiento lector. El segundo, aportar elementos para el fomento de la lectura, depende de que esa información se use, y la caída sostenida entre 2015 y 2024 indica que el fomento no ha revertido la tendencia. Existen esfuerzos institucionales como el programa Pasión por la lectura del Tecnológico de Monterrey, que organiza círculos de lectura, cápsulas literarias de un minuto, presentaciones y conversaciones con autores, talleres de escritura y una colección de libros digitales para su comunidad y el público en general (Tecnológico de Monterrey, s. f.). Sin embargo, para que estas iniciativas lleguen a quien más las necesita hay que saber quiénes son los distintos tipos de lectores y no lectores, y cómo están cambiando. Esa es la pregunta que guía este proyecto.
+
+# 2. Objetivo de investigación
+
+## 2.1 Pregunta de investigación
+
+**¿Qué perfiles de lector existen en la población urbana mexicana de 18 años y más, según su comportamiento lector reportado en MOLEC 2019–2024, y cómo ha cambiado el peso de cada perfil a lo largo de esos años?**
+
+De esta pregunta se desprenden tres objetivos específicos:
+
+1. **Identificar** grupos de personas con comportamientos lectores similares (cuánto leen, qué materiales, cuánto tiempo), mediante análisis de conglomerados (*k-means*).
+2. **Validar** que los grupos son reales y útiles: elegir el número de grupos con criterios internos (codo, silueta) y comprobar que difieren en variables que *no* se usaron para formarlos (edad, escolaridad, sexo, entidad y antecedentes de lectura en la infancia y la escuela).
+3. **Describir la tendencia**: estimar, con el factor de expansión, qué proporción de la población pertenece a cada perfil en cada año, y probar si esa proporción cambió entre 2019 y 2024, en particular alrededor de la pandemia (el levantamiento de febrero de 2021).
+
+Es importante aclarar que MOLEC es una serie de cortes transversales: cada año se entrevista a personas distintas. Por ello "hacia dónde se mueve la población" se entiende como el cambio en el **tamaño relativo** de cada perfil, no como el tránsito de una misma persona entre perfiles.
+
+## 2.2 Justificación
+
+```{r tendencia-preliminar}
+w_pct <- function(x, f) 100 * sum((x == 1) * f) / sum(f)
+tend <- bind_rows(lapply(names(bases), function(a) {
+  d <- bases[[a]] %>% filter(p1 == 1)            # población alfabeta, como reporta INEGI
+  data.frame(anio = as.integer(a),
+             Libros = w_pct(d$p3_1, d$factor), Revistas = w_pct(d$p3_2, d$factor),
+             `Periódicos` = w_pct(d$p3_3, d$factor), Historietas = w_pct(d$p3_4, d$factor),
+             Internet = w_pct(d$p3_5, d$factor), `Ningún material` = w_pct(d$perslec == 2, d$factor),
+             check.names = FALSE)
+}))
+lib19 <- round(tend$Libros[tend$anio == 2019], 1); lib24 <- round(tend$Libros[tend$anio == 2024], 1)
+rev19 <- round(tend$Revistas[tend$anio == 2019], 1); rev24 <- round(tend$Revistas[tend$anio == 2024], 1)
+per19 <- round(tend$`Periódicos`[tend$anio == 2019], 1); per24 <- round(tend$`Periódicos`[tend$anio == 2024], 1)
+nin19 <- round(tend$`Ningún material`[tend$anio == 2019], 1); nin24 <- round(tend$`Ningún material`[tend$anio == 2024], 1)
+```
+
+Los indicadores que INEGI publica cada año son promedios nacionales: porcentaje de población lectora, número promedio de libros leídos, etc. (INEGI, 2024). Fernández Martínez (2025) insiste en que el análisis de MOLEC debe ir más allá de medias y desviaciones estándar y preguntarse qué factores están asociados a leer más o menos, porque un promedio estable puede ocultar que la población se está polarizando. Una exploración preliminar de los datos ilustra esto: entre 2019 y 2024 el porcentaje ponderado de población alfabeta que leyó al menos un libro en el último año pasó de `r lib19`% a `r lib24`%, prácticamente sin cambio. En cambio, la lectura de revistas cayó de `r rev19`% a `r rev24`% y la de periódicos de `r per19`% a `r per24`%, y la proporción de personas que no leyó ninguno de los materiales considerados por MOLEC pasó de `r nin19`% a `r nin24`% (Figura 1). Esto sugiere que el cambio no está en el núcleo de lectores de libros, sino en los lectores "ocasionales" de materiales breves.
+
+```{r fig-tendencia, fig.cap=cap("Figura", 1, "Porcentaje ponderado de la población alfabeta de 18 años y más que leyó cada material, MOLEC 2019–2024.")}
+tend %>% pivot_longer(-anio, names_to = "Material", values_to = "pct") %>%
+  ggplot(aes(anio, pct, colour = Material)) +
+  geom_line(linewidth = 0.8) + geom_point(size = 1.6) +
+  labs(x = NULL, y = "% de la población", colour = NULL) +
+  scale_x_continuous(breaks = 2019:2024) +
+  theme_minimal(base_size = 10) + theme(legend.position = "right")
+```
+
+Identificar perfiles, y no solo promedios, tiene un impacto social directo. Las recomendaciones de fomento a la lectura que se piden en el reto deben dirigirse a públicos concretos, y un perfil (por ejemplo, "adultos que leen noticias en internet pero no libros") permite saber a quién dirigir cada acción, qué materiales y medios usa ese público, y qué barreras enfrenta. Además, relacionar los perfiles con los antecedentes de lectura en el hogar y la escuela conecta el análisis con las dos áreas de oportunidad que señalan las fuentes: la exposición temprana a la lectura, que alimenta la "espiral ascendente" descrita por Mol y Bus (2011), y el papel de los docentes para despertar el gusto por leer (Grupo Fórmula, 2024). Por último, conocer qué perfiles crecen o se reducen permite evaluar si el objetivo de fomento de la lectura que INEGI se planteó al crear MOLEC se está cumpliendo, y en qué segmentos de la población no.
+
+# 3. Descripción de los datos
+
+## 3.1 Bases de datos proporcionadas
+
+Se cuenta con los microdatos de MOLEC de 2019 a 2025, sus diccionarios y el cuestionario. Cada registro corresponde a una persona seleccionada en una vivienda (Tabla 1).
+
+```{r tabla-dim}
+dims <- rbind(Registros = c(sapply(bases, nrow), nrow(M25)),
+              Columnas = c(sapply(bases, ncol), ncol(M25)))
+colnames(dims) <- c(names(bases), "2025")
+kable(dims, caption = cap("Tabla", 1, "Dimensiones de las bases de datos MOLEC."))
+```
+
+Como verificación de la lectura y la ponderación de los datos, los porcentajes que calculamos con el factor de expansión reproducen las cifras oficiales: población alfabeta lectora de `r 100 - nin19`% en 2019 y `r 100 - nin24`% en 2024, y lectura de libros de `r lib24`% en 2024 (INEGI, 2024). Las bases 2019–2024 comparten el mismo cuestionario (`r length(comunes)` columnas comunes; la de 2019 solo cambia el orden y algunos nombres, como `n_ren_ele` por `n_ren_el`) y suman `r format(n_total_1924, big.mark = ",")` registros. Sus variables cubren identificación y diseño muestral, datos sociodemográficos, lectura de cada material (preguntas 1–25), prácticas de lectura (26–32), asistencia a espacios de lectura (33) y antecedentes en la infancia y la primaria (34–36).
+
+La base de **2025** responde a un **cuestionario rediseñado**: tiene otros nombres de variables (`m_p*`, `v_p*`), amplía "libro" a "libros, manuales o documentos, aunque no se hayan terminado", incluye `r n25_menores` personas de 12 a 17 años y el archivo `r if (!tiene_factor25 && !tiene_entidad25) "no trae factor de expansión ni entidad federativa" else "cambia las variables de diseño muestral"`. INEGI (2025) aclara que esta actualización "genera una nueva serie de información", por lo que no es comparable con los años anteriores: el porcentaje (sin ponderar) de adultos que declaró leer libros salta a `r round(100*mean(pmin(M25$m_p2a, M25$m_p3a, na.rm = TRUE)[M25$edad >= 18] == 1, na.rm = TRUE), 1)`%, frente a `r lib24`% en 2024, una diferencia atribuible sobre todo al cambio de definición.
+
+## 3.2 Calidad de los datos
+
+```{r calidad}
+vars_q <- c("edad", "p4", "p10", "p16", "p26")
+vars_c <- c("sexo", "nivel", "p1", "p2", "p3_1", "p3_2", "p3_3", "p3_4", "p3_5", "p8_1",
+            "p34_1", "p34_2", "p34_3", "p34_4", "p36_1", "p36_2", "p36_3", "p36_4")
+M1924 <- bind_rows(lapply(names(bases), function(a)
+  bases[[a]][, c("entidad", vars_q, vars_c, "factor", "perslec")] %>%
+    mutate(across(everything(), as.numeric), anio = as.integer(a))))
+
+pct <- function(x) round(100 * mean(x), 1)
+calidad <- data.frame(
+  Variable = c(vars_q, vars_c),
+  `% NA` = sapply(c(vars_q, vars_c), function(v) pct(is.na(M1924[[v]]))),
+  `% ceros ("blanco por pase")` = sapply(c(vars_q, vars_c), function(v) pct(M1924[[v]] %in% 0)),
+  check.names = FALSE, row.names = NULL)
+n_nivel99 <- sum(M1924$nivel == 99)
+n_99_conteos <- sum(M1924$p4 == 99) + sum(M1924$p10 == 99) + sum(M1924$p16 == 99)
+max_obs <- function(v) max(M1924[[v]][M1924[[v]] != 99])
+n_min240 <- sum(M1924$p26 > 240)
+n_norecuerda <- sum(M1924$p34_3 == 3)
+n_analfab <- sum(M1924$p1 == 2)
+```
+
+Las bases 2019–2024 **no tienen valores faltantes (NA)** en las variables de interés (`summary()` e `is.na()` dan 0%), pero eso no significa que estén completas: los "blancos por pase" (preguntas que no se hacen por una respuesta anterior) están codificados como **cero**. Por ejemplo, a las `r n_analfab` personas que no saben leer (`p1 = 2`) no se les hace ninguna pregunta posterior, y a quien no leyó libros no se le pregunta cuántos leyó. Por lo tanto, un 0 en `p4` (número de libros) significa "no leyó libros", que es un valor válido para el análisis, mientras que un 0 en `p36_*` significa "no asistió a la primaria" y debe tratarse como no aplicable. La Tabla 2 muestra el porcentaje de ceros.
+
+```{r tabla-calidad}
+calidad %>% filter(`% ceros ("blanco por pase")` > 0) %>%
+  group_by(`% NA`, `% ceros ("blanco por pase")`) %>%
+  summarise(Variables = paste(Variable, collapse = ", "), .groups = "drop") %>%
+  arrange(desc(`% ceros ("blanco por pase")`)) %>%
+  select(Variables, `% NA`, `% ceros ("blanco por pase")`) %>%
+  kable(caption = cap("Tabla", 2, "Porcentaje de NA y de ceros en las variables candidatas, 2019–2024 (solo variables con ceros; se agrupan las que tienen el mismo porcentaje)."))
+```
+
+También se encontraron valores espurios o especiales: `r n_nivel99` registros con escolaridad no especificada (`nivel = 99`), `r n_99_conteos` registros con el valor 99 en los conteos de libros o revistas (`p4`, `p10`). El diccionario acepta hasta 99, pero en la encuesta el 99 es el código de "no especificado" (como en `nivel`), así que se tratan como faltantes. Los `r n_min240` registros con más de 4 horas continuas de lectura (`p26`) se conservan porque están en el rango válido (001–999), pero se transformarán con logaritmo. Por último, el diccionario de 2019 asigna por error el nemónico `p3_5` a la pregunta 4 (número de libros), aunque en la base la columna se llama `p4`. En las preguntas sobre la infancia existe la respuesta "No recuerda" (código 3; `r n_norecuerda` casos en `p34_3`), que se trata como faltante.
+
+## 3.3 Selección de los datos y las variables
+
+**Años.** Se usan las bases **2019–2024**, seis levantamientos comparables (mismo cuestionario y mes, con factor de expansión) que cubren antes, durante y después de la pandemia. **Se excluye 2025** del modelo por el rediseño descrito en la sección 3.1.
+
+**Población.** Solo la población alfabeta (`p1 = 1`), que es a la que se aplica el módulo.
+
+**Variables.** Se seleccionaron 25 variables, organizadas por su papel en el análisis (Tabla 3):
+
+```{r tabla-variables}
+vars <- tribble(
+  ~Variable, ~`Descripción (pregunta; valores)`, ~Tipo, ~Papel,
+  "anio", "Año de levantamiento (2019…2024)", "Ordinal", "Tendencia",
+  "factor", "Factor de expansión", "Numérica", "Ponderación",
+  "n_libros", paste0("p4. Libros leídos en 12 meses (0…", max_obs("p4"), "; 0 = no leyó)"), "Numérica", "Agrupamiento",
+  "n_revistas", paste0("p10. Revistas leídas en 3 meses (0…", max_obs("p10"), ")"), "Numérica", "Agrupamiento",
+  "n_periodicos", paste0("p16. Periódicos leídos la semana pasada (0…", max_obs("p16"), ")"), "Numérica", "Agrupamiento",
+  "minutos", paste0("p26. Minutos continuos de lectura (0…", max_obs("p26"), ")"), "Numérica", "Agrupamiento",
+  "acostumbra", "p2. Acostumbra leer (1 Sí, 0 No)", "Binaria", "Agrupamiento",
+  "lee_* (5)", "p3_1–p3_5. Leyó libros, revistas, periódicos, historietas, internet", "Binaria", "Agrupamiento",
+  "lib_digital", "p8_1. Leyó libros digitales (1 Sí, 0 No o no leyó)", "Binaria", "Agrupamiento",
+  "edad", "Edad en años (18…97)", "Numérica", "Validación",
+  "nivel", "Escolaridad (0 Ninguno … 9 Doctorado)", "Ordinal", "Validación",
+  "sexo", "Sexo (1 Hombre, 2 Mujer)", "Nominal", "Validación",
+  "entidad", "Entidad federativa (01…32)", "Nominal", "Validación",
+  "p34_* (4)", "Infancia: bibliotecas, veía leer a padres, le leían, libros en casa", "Binaria", "Validación",
+  "p36_* (4)", "Primaria: le pedían leer, comentar, lo motivaban, bibliotecas", "Binaria", "Validación")
+kable(vars, caption = cap("Tabla", 3, "Variables seleccionadas."))
+```
+
+Las variables de **agrupamiento** describen el *comportamiento lector* y son las que usa *k-means* para formar los perfiles; cuatro de ellas son cuantitativas. Las de **validación** no entran al algoritmo: se usan después para comprobar, con pruebas de independencia ($\chi^2$) y de comparación de medias (ANOVA / Kruskal–Wallis), que los perfiles difieren en quiénes son las personas y en qué antecedentes tuvieron, lo que da evidencia de que la división no es arbitraria y ubica las áreas de oportunidad (hogar y escuela). Se descartaron las preguntas abiertas ("especifique"), casi siempre vacías; el gasto en materiales (`p7_3`, `p13_3`, `p19_3`), que solo aplica a quien compró e incluye el código especial 999999; los tipos de libro o revista, que solo aplican a lectores de cada material; y las variables de control de la vivienda.
+
+```{r base-final}
+M <- M1924 %>%
+  filter(p1 == 1, edad <= 97, nivel != 99) %>%
+  transmute(
+    anio, entidad, sexo, edad, nivel, factor,
+    n_libros = na_if(p4, 99), n_revistas = na_if(p10, 99), n_periodicos = na_if(p16, 99), minutos = p26,
+    acostumbra = as.integer(p2 == 1),
+    lee_libros = as.integer(p3_1 == 1), lee_revistas = as.integer(p3_2 == 1),
+    lee_periodicos = as.integer(p3_3 == 1), lee_historietas = as.integer(p3_4 == 1),
+    lee_internet = as.integer(p3_5 == 1), lib_digital = as.integer(p8_1 == 1),
+    across(c(p34_1, p34_2, p34_3, p34_4, p36_1, p36_2, p36_3, p36_4),
+           ~ case_when(. == 1 ~ 1L, . == 2 ~ 0L, TRUE ~ NA_integer_)))
+n_antes <- nrow(M)
+MA <- na.omit(M)
+n_despues <- nrow(MA)
+write.csv(MA, "DatosEquipo_MOLEC_2019_2024.csv", row.names = FALSE)
+```
+
+**Limpieza.** Tras filtrar a la población alfabeta y eliminar escolaridad no especificada, quedan `r format(n_antes, big.mark = ",")` registros. Al recodificar como faltantes "No recuerda", "no asistió a primaria" y los códigos 99 de los conteos, `na.omit()` elimina `r format(n_antes - n_despues, big.mark = ",")` registros (`r round(100*(n_antes-n_despues)/n_antes, 1)`%), y la base de trabajo final tiene **`r format(n_despues, big.mark = ",")` registros y `r ncol(MA)` columnas**. Se guardó como `DatosEquipo_MOLEC_2019_2024.csv` (Tabla 4).
+
+```{r tabla-cuanti}
+cuanti <- MA %>% select(edad, n_libros, n_revistas, n_periodicos, minutos) %>%
+  pivot_longer(everything(), names_to = "Variable") %>% group_by(Variable) %>%
+  summarise(Media = mean(value), Mediana = median(value), DE = sd(value),
+            `Mín` = min(value), `Máx` = max(value), `% ceros` = 100 * mean(value == 0))
+kable(cuanti, digits = 1, caption = cap("Tabla", 4, "Estadísticos de las variables cuantitativas (base final, sin ponderar)."))
+```
+
+La proporción de ceros y la asimetría de los conteos (media mayor que la mediana) justifican transformarlos con $\log(1+x)$ y estandarizarlos antes de aplicar *k-means* en la Etapa 3.
+
+# Referencias
+
+Delgado, P., Vargas, C., Ackerman, R., & Salmerón, L. (2018). Don't throw away your printed books: A meta-analysis on the effects of reading media on reading comprehension. *Educational Research Review, 25*, 23–38.
+
+Fernández Martínez, M. A. (2025, 30 de septiembre). *Leer menos hoy, rezagos del mañana* [Video]. YouTube. Cursos Estadística.
+
+Grupo Fórmula. (2024, 23 de abril). *En México se lee poco… y cada vez menos, explica investigador* [Video]. YouTube. [PENDIENTE: URL]
+
+Instituto Nacional de Estadística y Geografía. (2019–2025). *Módulo sobre Lectura (MOLEC)* [Microdatos, diccionarios y cuestionario]. https://www.inegi.org.mx/programas/molec/
+
+Instituto Nacional de Estadística y Geografía. (2024). *Módulo sobre Lectura (MOLEC) 2024* (Comunicado de prensa núm. 235/24). https://www.inegi.org.mx/contenidos/saladeprensa/boletines/2024/molec/molec2024.pdf
+
+Instituto Nacional de Estadística y Geografía. (2025). *Módulo sobre Lectura (MOLEC) 2025* (Comunicado de prensa núm. 143/25). https://www.inegi.org.mx/contenidos/saladeprensa/boletines/2025/molec/molec2025_CP.pdf
+
+Mol, S. E., & Bus, A. G. (2011). To read or not to read: A meta-analysis of print exposure from infancy to early adulthood. *Psychological Bulletin, 137*(2), 267–296. https://doi.org/10.1037/a0021890
+
+OECD. (2026). *PISA 2025 results (Volume I): Country notes: Mexico*. OECD Publishing. https://www.oecd.org/en/publications/pisa-2025-results-volume-i-country-notes_2d4ff9ea-en/mexico_85702d30-en.html
+
+Puebla Noticias en Sicom. (2025, 24 de abril). *¿Por qué cada vez leemos menos en México? Día del Libro y el reto de fomentar la lectura* [Video]. YouTube. [PENDIENTE: URL]
+
+Tecnológico de Monterrey. (s. f.). *Actividades de Pasión por la lectura*. https://tec.mx/es/pasion-por-la-lectura/actividades-de-pasion-por-la-lectura
+
+UNESCO. (2021, 25 de marzo). *100 million more children under the minimum reading proficiency level due to COVID-19: UNESCO convenes world education ministers*. https://www.unesco.org/en/articles/100-million-more-children-under-minimum-reading-proficiency-level-due-covid-19-unesco-convenes-world
+
+**Código en R:** [PENDIENTE: liga pública al repositorio, p. ej. GitHub, con `Etapa1.Rmd`].

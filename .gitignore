@@ -1,0 +1,15 @@
+# macOS / RStudio
+.DS_Store
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# Archivos intermedios de knit
+*.log
+*.tex
+*_files/
+*_cache/
+
+# Salida de Word (se entrega el PDF)
+Etapa*.docx
