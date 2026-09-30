@@ -8,8 +8,8 @@ Reto de Estadística: análisis del Módulo sobre Lectura (MOLEC) del INEGI.
 
 ## Equipo
 
-- Vicente Alonso Gallardo Montalva
-- Jia-Hong André Kuo Ko
+- Vicente Alonso Gallardo Montalva 
+- Jia-Hong André Kuo Ko 
 - Mauricio Ruiz Junco
 - Mauricio Orcasitas Fara
 
