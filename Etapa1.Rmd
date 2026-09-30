@@ -2,12 +2,13 @@
 title: 'La realidad de la lectura en México: perfiles lectores y su evolución (MOLEC
   2019–2024)'
 author:
-- "Análisis de métodos matemáticos para la física (Gpo 601)"
-- "Vicente Alonso Gallardo Montalva — A01787981"
-- "Jia-Hong André Kuo Ko — A01179116"
-- "Mauricio Ruiz Junco — A01783698"
-- "Mauricio Orcasitas Fara — A00843564"
-date: "30 de septiembre de 2026"
+- "Vicente Alonso Gallardo Montalva – A01787981"
+- "Jia-Hong André Kuo Ko – A01179116"
+- "Mauricio Ruiz Junco – A01783698"
+- "Mauricio Orcasitas Fara – A00843564"
+date: "30/09/2026"
+curso: "Análisis de métodos matemáticos para la física (Gpo 601)"
+profesor: "Francisco Díaz Estrada"
 output:
   pdf_document: default
   word_document:
@@ -21,6 +22,10 @@ header-includes:
   - \usepackage{etoolbox}
   - \AtBeginEnvironment{tabular}{\linespread{1}\selectfont}
   - \AtBeginEnvironment{longtable}{\linespread{1}\selectfont}
+  - \usepackage{graphicx}
+  - \usepackage{xcolor}
+  - \definecolor{azultec}{HTML}{0033A0}
+  - \renewcommand{\maketitle}{}
 subtitle: Etapa 1. El contexto y el objetivo
 ---
 
@@ -34,6 +39,23 @@ library(knitr)
 library(readxl)
 # En PDF, LaTeX ya antepone "Tabla n:"; en Word el número va en el texto.
 cap <- function(tipo, n, txt) if (knitr::is_latex_output()) txt else paste0(tipo, " ", n, ". ", txt)
+```
+
+```{r portada, results='asis'}
+# ---- Portada con el formato del Tec (solo PDF) ----
+# Toma los datos del encabezado YAML. En Word se usa el bloque de título normal.
+if (knitr::is_latex_output()) {
+  m <- rmarkdown::metadata
+  cat("\\begin{titlepage}\\centering\\fontfamily{ptm}\\fontsize{16}{19}\\selectfont",
+      "\\vspace*{0.6cm}",
+      "\\includegraphics[width=0.82\\textwidth]{img/logo_tec.png}\\par\\vspace{1.6cm}",
+      sprintf("{\\color{azultec}\\bfseries %s\\par}\\vspace{0.3cm}", m$title),
+      sprintf("{\\color{azultec}%s\\par}\\vspace{2cm}", m$subtitle),
+      paste(m$author, collapse = "\\\\[0.25cm]"), "\\par\\vspace{0.6cm}",
+      m$date, "\\par\\vspace{2.6cm}",
+      m$curso, "\\\\[0.25cm]", m$profesor, "\\par",
+      "\\end{titlepage}", sep = "\n")
+}
 ```
 
 ```{r lectura}

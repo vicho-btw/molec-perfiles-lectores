@@ -22,6 +22,7 @@ Reto de Estadística: análisis del Módulo sobre Lectura (MOLEC) del INEGI.
 | `DatosEquipo_MOLEC_2019_2024.csv` | Base de trabajo limpia: 10,252 registros, 25 variables. La genera `Etapa1.Rmd`. |
 | `datos/` | Microdatos y diccionarios de MOLEC 2019–2025 tal como los publica INEGI. |
 | `plantilla_word.docx` | Estilos para la salida en Word (interlineado 1.5). |
+| `img/logo_tec.png` | Logo para la portada del PDF (curso y profesor van en el YAML de `Etapa1.Rmd`). |
 
 ## Cómo compilar
 
