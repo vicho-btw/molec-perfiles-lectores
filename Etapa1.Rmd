@@ -5,10 +5,10 @@ author:
 - "Vicente Alonso Gallardo Montalva – A01787981"
 - "Jia-Hong André Kuo Ko – A01179116"
 - "Mauricio Ruiz Junco – A01783698"
-- "Mauricio Orcasitas Fara – A00843564"
+- "Mauricio Horcasitas Farah – A00843564"
 date: "30/09/2026"
-curso: "Análisis de métodos matemáticos para la física (Gpo 601)"
-profesor: "Francisco Díaz Estrada"
+curso: "Modelación estadística para la toma de decisiones (Gpo 202)"
+profesor: "Dra. Blanca R. Ruiz Hernández, Dra. María Guadalupe Tobías Lara"
 output:
   pdf_document: default
   word_document:
@@ -37,13 +37,10 @@ library(tidyr)
 library(ggplot2)
 library(knitr)
 library(readxl)
-# En PDF, LaTeX ya antepone "Tabla n:"; en Word el número va en el texto.
 cap <- function(tipo, n, txt) if (knitr::is_latex_output()) txt else paste0(tipo, " ", n, ". ", txt)
 ```
 
 ```{r portada, results='asis'}
-# ---- Portada con el formato del Tec (solo PDF) ----
-# Toma los datos del encabezado YAML. En Word se usa el bloque de título normal.
 if (knitr::is_latex_output()) {
   m <- rmarkdown::metadata
   cat("\\begin{titlepage}\\centering\\fontfamily{ptm}\\fontsize{16}{19}\\selectfont",
@@ -60,8 +57,6 @@ if (knitr::is_latex_output()) {
 
 ```{r lectura}
 # ---- Lectura de todas las bases y diccionarios ----
-# Los CSV vienen en latin1; los nombres se pasan a minúsculas porque algunos
-# años escriben P5_6esp / p5_6esp, etc. El 2019 trae un BOM en la primera columna.
 leer_molec <- function(ruta) {
   d <- read.csv(ruta, fileEncoding = "latin1", check.names = FALSE)
   names(d) <- tolower(sub("^﻿|^ï»¿", "", names(d)))
