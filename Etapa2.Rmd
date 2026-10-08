@@ -1,0 +1,682 @@
+---
+title: 'La realidad de la lectura en México: perfiles lectores y su evolución (MOLEC
+  2019–2024)'
+subtitle: Etapa 2. Comprensión y preparación de los datos
+equipo: "Equipo 5"
+author:
+- "Vicente Alonso Gallardo Montalva – A01787981"
+- "Jia-Hong André Kuo Ko – A01179116"
+- "Mauricio Ruiz Junco – A01783698"
+- "Mauricio Horcasitas Farah – A00843564"
+date: "07/10/2026"
+curso: "Modelación estadística para la toma de decisiones (Gpo 202)"
+profesor: "Dra. Blanca R. Ruiz Hernández, Dra. María Guadalupe Tobías Lara"
+output: pdf_document
+fontsize: 11pt
+geometry: margin=2.5cm
+header-includes:
+  - \linespread{1.15}
+  - \renewcommand{\tablename}{Tabla}
+  - \renewcommand{\figurename}{Figura}
+  - \usepackage{etoolbox}
+  - \AtBeginEnvironment{tabular}{\linespread{1}\selectfont}
+  - \AtBeginEnvironment{longtable}{\linespread{1}\selectfont}
+  - \usepackage{float}
+  - \usepackage[font=small,labelfont=bf,skip=2pt]{caption}
+  - \usepackage{titlesec}
+  - \titleformat*{\section}{\large\bfseries}
+  - \titleformat*{\subsection}{\normalsize\bfseries}
+  - \titlespacing*{\section}{0pt}{8pt}{3pt}
+  - \titlespacing*{\subsection}{0pt}{6pt}{2pt}
+  - \setlength{\intextsep}{5pt plus 2pt minus 2pt}
+  - \setlength{\parskip}{3pt}
+  - \setlength{\emergencystretch}{3em}
+  - \usepackage{graphicx}
+  - \usepackage{xcolor}
+  - \definecolor{azultec}{HTML}{0033A0}
+  - \renewcommand{\maketitle}{}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 7, fig.height = 2.3, dpi = 200, fig.pos = "H", out.extra = "",
+                      out.width = "100%")
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(e1071)
+f1 <- function(x) format(round(x, 1), nsmall = 1)
+fmt <- function(x) format(x, big.mark = ",")
+# Porcentaje ponderado con el factor de expansión (ignora los NA de x)
+wp <- function(x, w) 100 * sum(x * w, na.rm = TRUE) / sum(w[!is.na(x)])
+tabla <- function(d, cap, ..., ajustar = FALSE) kbl(d, booktabs = TRUE, caption = cap, linesep = "", ...) %>%
+  kable_styling(latex_options = c("HOLD_position", if (ajustar) "scale_down"), font_size = 8)
+tema <- theme_minimal(base_size = 8.5) +
+  theme(panel.grid.minor = element_blank(), panel.grid.major = element_line(colour = "grey90", linewidth = 0.3),
+        legend.position = "top", legend.key.size = unit(0.3, "cm"), legend.margin = margin(0, 0, 0, 0),
+        strip.text = element_text(face = "bold", hjust = 0), plot.title = element_text(size = 8.5, face = "bold"),
+        plot.margin = margin(2, 8, 2, 2))
+azul <- "#2a78d6"
+col_tipo <- c("No lee" = "#a3a29b", "Solo otros materiales" = "#eb6834",
+              "Solo libros" = "#1baf7a", "Libros y otros" = "#2a78d6")
+col_esc <- c("Primaria o menos" = "#86b6ef", "Secundaria" = "#3987e5",
+             "Media superior" = "#1c5cab", "Superior" = "#0d366b")
+```
+
+```{r portada, results='asis'}
+m <- rmarkdown::metadata
+cat("\\begin{titlepage}\\centering\\fontfamily{ptm}\\fontsize{16}{19}\\selectfont",
+    "\\vspace*{0.6cm}",
+    "\\includegraphics[width=0.82\\textwidth]{img/logo_tec.png}\\par\\vspace{1.4cm}",
+    sprintf("{\\color{azultec}\\bfseries %s\\par}\\vspace{0.3cm}", m$title),
+    sprintf("{\\color{azultec}%s\\par}\\vspace{1.4cm}", m$subtitle),
+    sprintf("{\\bfseries %s\\par}\\vspace{0.4cm}", m$equipo),
+    paste(m$author, collapse = "\\\\[0.25cm]"), "\\par\\vspace{0.6cm}",
+    m$date, "\\par\\vspace{2.2cm}",
+    m$curso, "\\\\[0.25cm]", m$profesor, "\\par",
+    "\\end{titlepage}", sep = "\n")
+```
+
+```{r lectura}
+# ---- Lectura e integración de las bases 2019–2024 ----
+# Los CSV vienen en latin1; los nombres se pasan a minúsculas (2019–2021 escriben P36_1)
+# y se quita el BOM de la primera columna de 2019.
+leer_molec <- function(ruta) {
+  d <- read.csv(ruta, fileEncoding = "latin1", check.names = FALSE)
+  names(d) <- tolower(sub("^﻿|^ï»¿", "", names(d)))
+  d
+}
+bases <- list(`2019` = leer_molec("datos/2019/Datos_molec_2019-1.csv"),
+              `2020` = leer_molec("datos/2020/Datos_molec_2020-1.csv"),
+              `2021` = leer_molec("datos/2021/Datos_molec_2021-1.CSV"),
+              `2022` = leer_molec("datos/2022/Datos_molec_2022-1.CSV"),
+              `2023` = leer_molec("datos/2023/Datos_molec_2023-1.CSV"),
+              `2024` = leer_molec("datos/2024/Datos_molec_2024-1.csv"))
+n_bruto <- sum(sapply(bases, nrow))
+n_cols_bruto <- unique(sapply(bases, ncol))
+
+ids <- c("folio", "entidad", "control", "viv_sel", "num_hog", "n_ren_el", "n_ren_ele", "cd", "periodo", "hog_mud")
+# Duplicados: misma clave de persona dentro del año, o mismas respuestas en todo
+n_dup_id <- sum(sapply(bases, function(d) sum(duplicated(d[, intersect(ids, names(d))]))))
+n_dup_resp <- sum(sapply(bases, function(d) sum(duplicated(d[, setdiff(names(d), ids)]))))
+
+vars <- c("entidad", "sexo", "edad", "nivel", "p1", "p2", "p3_1", "p3_2", "p3_3", "p3_4", "p3_5",
+          "p4", "p8_1", "p10", "p16", "p26", "p34_1", "p34_2", "p34_3", "p34_4", "p35",
+          "p36_1", "p36_2", "p36_3", "p36_4", "factor", "mat_lec")
+M <- bind_rows(lapply(names(bases), function(a)
+  bases[[a]][, vars] %>% mutate(across(everything(), as.numeric), anio = as.integer(a))))
+# Celdas vacías originales: solo mat_lec de 2019, y solo en personas que no saben leer
+n_na_orig <- sum(is.na(M))
+na_orig_analf <- all(M$p1[!complete.cases(M)] == 2)
+```
+
+```{r calidad}
+# ---- Conteos para la revisión de calidad (antes de recodificar) ----
+L <- M %>% filter(p1 == 1)
+q <- list(
+  analf = sum(M$p1 == 2), nivel99 = sum(L$nivel == 99),
+  p4_0 = sum(L$p4 == 0), p10_0 = sum(L$p10 == 0), p16_0 = sum(L$p16 == 0),
+  p26_0 = sum(L$p26 == 0), p8_0 = sum(L$p8_1 == 0),
+  nr = range(sapply(L[, c("p34_1", "p34_2", "p34_3", "p34_4", "p36_1", "p36_2", "p36_3", "p36_4")],
+                    function(x) sum(x == 3))),
+  p36_0 = sum(L$p36_1 == 0),
+  n99 = sum(L$p4 == 99) + sum(L$p10 == 99) + sum(L$p16 == 99),
+  p26_max = max(L$p26), p4_max24 = max(L$p4[L$anio == 2024]), edad = range(L$edad))
+# Registros que eliminaba el na.omit() de la Etapa 1: misma población (nivel != 99) y mismos
+# faltantes (99 en p4/p10, "No recuerda" o "no aplica" en p34/p36)
+e1 <- L %>% filter(nivel != 99) %>%
+  mutate(excl_e1 = p4 == 99 | p10 == 99 |
+           !(p34_1 %in% 1:2 & p34_2 %in% 1:2 & p34_3 %in% 1:2 & p34_4 %in% 1:2 &
+             p36_1 %in% 1:2 & p36_2 %in% 1:2 & p36_3 %in% 1:2 & p36_4 %in% 1:2)) %>%
+  group_by(excl_e1) %>%
+  summarise(n = n(), edad = mean(edad), lectores = wp(p3_1 + p3_2 + p3_3 + p3_4 + p3_5 < 10, factor))
+```
+
+```{r preparacion}
+# ---- Base preparada ----
+sino <- function(x) case_when(x == 1 ~ 1L, x == 2 ~ 0L, TRUE ~ NA_integer_)  # 3 = No recuerda, 0 = pase -> NA
+D <- L %>% transmute(
+  anio, entidad, factor,
+  sexo = factor(sexo, 1:2, c("Hombre", "Mujer")),
+  edad,
+  grupo_edad = cut(edad, c(17, 29, 44, 59, Inf), c("18-29", "30-44", "45-59", "60+")),
+  nivel = na_if(nivel, 99),
+  escolaridad = cut(nivel, c(-1, 2, 3, 6, 9), names(col_esc), ordered_result = TRUE),
+  acostumbra = sino(p2),
+  lee_libros = sino(p3_1), lee_revistas = sino(p3_2), lee_periodicos = sino(p3_3),
+  lee_historietas = sino(p3_4), lee_internet = sino(p3_5),
+  n_materiales = lee_libros + lee_revistas + lee_periodicos + lee_historietas + lee_internet,
+  tipo_lector = factor(mat_lec, c(4, 3, 1, 2), names(col_tipo)),
+  n_libros = p4, n_revistas = p10, n_periodicos = p16,     # 0 = no leyó ese material (válido)
+  minutos = na_if(p26, 0),                                 # 0 = no lee nada (no aplica)
+  lib_digital = if_else(p3_1 == 1, sino(p8_1), NA_integer_),
+  inf_bibliotecas = sino(p34_1), inf_veia_leer = sino(p34_2),
+  inf_le_leian = sino(p34_3), inf_libros_casa = sino(p34_4),
+  esc_pedian_leer = sino(p36_1), esc_comentar = sino(p36_2),
+  esc_motivaban = sino(p36_3), esc_bibliotecas = sino(p36_4),
+  ind_hogar = inf_bibliotecas + inf_veia_leer + inf_le_leian + inf_libros_casa,
+  ind_escuela = esc_pedian_leer + esc_comentar + esc_motivaban + esc_bibliotecas)
+
+# ---- Partición entrenamiento / validación / prueba (70/15/15, estratificada por año) ----
+set.seed(2026)
+partir <- function(n) {
+  n_ent <- round(0.70 * n); n_val <- round(0.15 * n)
+  sample(c(rep("entrenamiento", n_ent), rep("validacion", n_val), rep("prueba", n - n_ent - n_val)))
+}
+D <- D %>% group_by(anio) %>% mutate(particion = partir(n())) %>% ungroup() %>%
+  relocate(particion, .after = factor)
+write.csv(D, "BasePreparada_MOLEC_2019_2024.csv", row.names = FALSE, fileEncoding = "UTF-8")
+
+part <- D %>% group_by(particion) %>%
+  summarise(n = n(), nolee = wp(tipo_lector == "No lee", factor), edad = mean(edad))
+pt <- function(v) setNames(part[[v]], part$particion)
+# Diferencia máxima entre % ponderado y sin ponderar del tipo de lector por año
+dif_pond <- D %>% group_by(anio, tipo_lector) %>% summarise(n = n(), w = sum(factor), .groups = "drop") %>%
+  group_by(anio) %>% summarise(d = max(abs(100 * n / sum(n) - 100 * w / sum(w)))) %>% pull(d) %>% max()
+```
+
+\newpage
+
+# 1. Revisión bibliográfica
+
+## 1.1 ¿Por qué importa medir la lectura?
+
+Leer no es solo una actividad cultural: es la base de otras habilidades. En la charla que abrió este reto, Fernández Martínez (2025) resume el problema así: en México y en el mundo las personas leen menos y, cuando leen, comprenden menos, y eso tiene consecuencias cognitivas, educativas, laborales y políticas. En lo individual, la lectura frecuente enriquece el lenguaje, la concentración y la imaginación. La evidencia empírica respalda esa relación: en un metaanálisis de 99 estudios (N = 7,669), Mol y Bus (2011) encontraron correlaciones de moderadas a fuertes entre la lectura en el tiempo libre y la comprensión lectora, la lectura técnica y la ortografía, desde preescolar hasta la universidad. Los autores describen una "espiral ascendente": quien comprende mejor lee más y, al leer más, su comprensión mejora con cada año escolar. La espiral también funciona en sentido contrario, lo que explica por qué los rezagos tempranos se acumulan.
+
+En lo social, Fernández Martínez (2025) vincula la baja comprensión lectora con la dificultad para distinguir hechos de opiniones y, por lo tanto, con una mayor vulnerabilidad ante la desinformación y ante los errores de la inteligencia artificial que se copian sin cuestionarse. También la relaciona con la movilidad social: de cada 100 estudiantes que entran a primaria, solo 29 terminan la universidad, y en los estudios de abandono escolar que presentó para Guanajuato y Nuevo León el motivo principal fue académico, no económico. Por eso medir la lectura es de interés ciudadano: sin datos no se puede saber si las políticas de fomento funcionan, a quién deben dirigirse ni cómo evaluarlas.
+
+## 1.2 La situación en el mundo y en México
+
+A nivel mundial, la pandemia empeoró el panorama. Antes de COVID-19 se esperaba que el número de niñas y niños sin habilidades mínimas de lectura bajara de 483 a 460 millones en 2020; en cambio, subió a 584 millones, lo que borró los avances de dos décadas (UNESCO, 2021). La prueba PISA, que evalúa a estudiantes de 15 años, confirma el rezago de México: en PISA 2025 el país obtuvo 408 puntos en lectura, frente a un promedio de 461 en la OCDE, y solo 50% de sus estudiantes alcanzó el nivel 2, el mínimo en el que se identifica la idea principal de un texto de extensión moderada (promedio OCDE: 69%) (OECD, 2026). Según Fernández Martínez, la caída de la lectura también se observa en países como Estados Unidos, pero en México es más grave porque se parte de un nivel que ya era bajo (Grupo Fórmula, 2024).
+
+Ambas mediciones se complementan, pero miden cosas distintas: PISA evalúa la competencia lectora de estudiantes con una prueba estandarizada, mientras que el Módulo sobre Lectura (MOLEC) del INEGI registra los hábitos de lectura de adultos mediante una encuesta en hogares. Su objetivo es "generar información estadística sobre el comportamiento lector de la población de 18 años y más que reside en México en áreas urbanas, con la finalidad de proporcionar datos útiles para conocer las características de la citada población y proporcionar elementos para el fomento de la lectura" (INEGI, 2024). Hasta 2024 se levantó cada febrero en 32 ciudades de 100 mil o más habitantes, una por entidad federativa (INEGI, 2025). Pregunta qué se lee (libros, revistas, periódicos, historietas y páginas de internet), cuánto, con qué motivo y en qué formato, y qué estímulos a la lectura hubo en la infancia, en el hogar y en la escuela. Como señala Fernández Martínez (2025), estas últimas preguntas no son arbitrarias: responden a la hipótesis de que quien creció rodeado de cultura escrita tiene mayor probabilidad (no certeza) de leer por gusto.
+
+Los resultados son preocupantes. La población alfabeta que leyó algún material bajó de 84.2% en 2015 a 69.6% en 2024, una caída de 14.6 puntos porcentuales. En 2024 lo más leído fueron los libros (41.8%), seguidos de las páginas de internet, foros o blogs (39.4%), las revistas (21.7%), los periódicos (17.8%) y las historietas (4.6%). El mismo reporte muestra la huella del hogar: siete de cada diez personas lectoras recordaron que en su casa había libros distintos a los de texto durante la infancia, contra cuatro de cada diez no lectoras (INEGI, 2024).
+
+## 1.3 Causas y dificultades de la medición
+
+Las fuentes consultadas coinciden en tres explicaciones. Primero, el sistema educativo no ha logrado formar el hábito: la lectura es una actividad transversal que requiere un trabajo pedagógico gradual en todas las materias, y, en palabras de Fernández Martínez, "esto no se impone, sino que tienes que ser capaz de despertar el gusto por la lectura desde los primeros años escolares" (Grupo Fórmula, 2024). Segundo, la lectura compite por la atención con las redes sociales y el celular, que acortan los periodos de concentración (Haidt, 2024, citado en Fernández Martínez, 2025); esta misma preocupación por el desplazamiento de los libros por los dispositivos móviles enmarcó el Día Internacional del Libro de 2025 (Puebla Noticias en Sicom, 2025). Tercero, algunas políticas se han diseñado sin evidencia: la ley de precio único del libro se presentó como una medida de fomento, pero, según el análisis del expositor, no hay evidencia de que aumente la lectura y sí de que eleva los precios (Fernández Martínez, 2025).
+
+Medir la lectura también presenta dificultades. MOLEC se basa en el autorreporte, así que la comprensión que registra es autopercibida y no medida, como en PISA. Hasta 2024 solo representó a la población urbana, y en 2025 cambió su cobertura (12 años y más, con representación nacional) y su marco conceptual, lo que según el propio INEGI (2025) "genera una nueva serie de información". El formato también importa: un metaanálisis encontró que la comprensión es menor cuando el mismo texto se lee en pantalla que en papel (Delgado et al., 2018), de modo que el paso a lo digital puede cambiar lo que significa "leer". Por último, se trata de datos observacionales: como advierte Fernández Martínez (2025), correlación no es causalidad, y el análisis debe partir de hipótesis claras y no limitarse a medias y desviaciones estándar.
+
+## 1.4 ¿Se han cumplido los objetivos de MOLEC?
+
+MOLEC ha cumplido su primer objetivo: generar información estadística anual y pública sobre el comportamiento lector. El segundo, aportar elementos para el fomento de la lectura, depende de que esa información se use, y la caída sostenida entre 2015 y 2024 indica que el fomento no ha revertido la tendencia. Existen esfuerzos institucionales como el programa Pasión por la lectura del Tecnológico de Monterrey, que organiza círculos de lectura, cápsulas literarias de un minuto, presentaciones y conversaciones con autores, talleres de escritura y una colección de libros digitales para su comunidad y el público en general (Tecnológico de Monterrey, s. f.). Sin embargo, para que estas iniciativas lleguen a quien más las necesita hay que saber quiénes son los distintos tipos de lectores y no lectores, y cómo están cambiando. Esa es la pregunta que guía este proyecto.
+
+# 2. Objetivo de investigación
+
+## 2.1 Pregunta de investigación
+
+**¿Qué perfiles de lector existen en la población urbana mexicana de 18 años y más, según su comportamiento lector reportado en MOLEC 2019–2024, y cómo ha cambiado el peso de cada perfil a lo largo de esos años?**
+
+De esta pregunta se desprenden tres objetivos específicos:
+
+1. **Identificar** grupos de personas con comportamientos lectores similares (cuánto leen, qué materiales, cuánto tiempo), mediante análisis de conglomerados (*k-means*).
+2. **Validar** que los grupos son reales y útiles: elegir el número de grupos con criterios internos (codo, silueta), calculados en un conjunto de validación (sección 3.4), y comprobar que difieren en variables que *no* se usaron para formarlos (edad, escolaridad, sexo, entidad y antecedentes de lectura en la infancia y la escuela).
+3. **Describir la tendencia**: estimar, con el factor de expansión, qué proporción de la población pertenece a cada perfil en cada año, y probar si esa proporción cambió entre 2019 y 2024, en particular alrededor de la pandemia (el levantamiento de febrero de 2021).
+
+Es importante aclarar que MOLEC es una serie de cortes transversales: cada año se entrevista a personas distintas. Por ello "hacia dónde se mueve la población" se entiende como el cambio en el **tamaño relativo** de cada perfil, no como el tránsito de una misma persona entre perfiles.
+
+## 2.2 Justificación
+
+```{r tendencia-preliminar}
+w_pct <- function(x, f) 100 * sum((x == 1) * f) / sum(f)
+tend <- bind_rows(lapply(names(bases), function(a) {
+  d <- bases[[a]] %>% filter(p1 == 1)            # población alfabeta, como reporta INEGI
+  data.frame(anio = as.integer(a),
+             Libros = w_pct(d$p3_1, d$factor), Revistas = w_pct(d$p3_2, d$factor),
+             `Periódicos` = w_pct(d$p3_3, d$factor), Historietas = w_pct(d$p3_4, d$factor),
+             Internet = w_pct(d$p3_5, d$factor), `Ningún material` = w_pct(d$perslec == 2, d$factor),
+             check.names = FALSE)
+}))
+lib19 <- round(tend$Libros[tend$anio == 2019], 1); lib24 <- round(tend$Libros[tend$anio == 2024], 1)
+rev19 <- round(tend$Revistas[tend$anio == 2019], 1); rev24 <- round(tend$Revistas[tend$anio == 2024], 1)
+per19 <- round(tend$`Periódicos`[tend$anio == 2019], 1); per24 <- round(tend$`Periódicos`[tend$anio == 2024], 1)
+nin19 <- round(tend$`Ningún material`[tend$anio == 2019], 1); nin24 <- round(tend$`Ningún material`[tend$anio == 2024], 1)
+```
+
+Los indicadores que INEGI publica cada año son promedios nacionales: porcentaje de población lectora, número promedio de libros leídos, etc. (INEGI, 2024). Fernández Martínez (2025) insiste en que el análisis de MOLEC debe ir más allá de medias y desviaciones estándar y preguntarse qué factores están asociados a leer más o menos, porque un promedio estable puede ocultar que la población se está polarizando. Una exploración preliminar de los datos ilustra esto: entre 2019 y 2024 el porcentaje ponderado de población alfabeta que leyó al menos un libro en el último año pasó de `r lib19`% a `r lib24`%, prácticamente sin cambio. En cambio, la lectura de revistas cayó de `r rev19`% a `r rev24`% y la de periódicos de `r per19`% a `r per24`%, y la proporción de personas que no leyó ninguno de los materiales considerados por MOLEC pasó de `r nin19`% a `r nin24`% (Figura \ref{fig:fig-tendencia}). Esto sugiere que el cambio no está en el núcleo de lectores de libros, sino en los lectores "ocasionales" de materiales breves.
+
+```{r fig-tendencia, fig.height=2.2, fig.cap="Porcentaje ponderado de la población alfabeta de 18 años y más que leyó cada material, MOLEC 2019–2024."}
+col_mat <- c(Libros = "#2a78d6", Internet = "#eb6834", Revistas = "#1baf7a", `Periódicos` = "#eda100",
+             Historietas = "#e87ba4", `Ningún material` = "#a3a29b")
+tend %>% pivot_longer(-anio, names_to = "Material", values_to = "pct") %>%
+  mutate(Material = factor(Material, names(col_mat))) %>%
+  ggplot(aes(anio, pct, colour = Material)) +
+  geom_line(linewidth = 0.7) + geom_point(size = 1.6) +
+  scale_colour_manual(values = col_mat) + scale_x_continuous(breaks = 2019:2024) +
+  labs(x = NULL, y = "% de la población", colour = NULL) + tema + theme(legend.position = "right")
+```
+
+Identificar perfiles, y no solo promedios, tiene un impacto social directo. Las recomendaciones de fomento a la lectura que se piden en el reto deben dirigirse a públicos concretos, y un perfil (por ejemplo, "adultos que leen noticias en internet pero no libros") permite saber a quién dirigir cada acción, qué materiales y medios usa ese público, y qué barreras enfrenta. Además, relacionar los perfiles con los antecedentes de lectura en el hogar y la escuela conecta el análisis con las dos áreas de oportunidad que señalan las fuentes: la exposición temprana a la lectura, que alimenta la "espiral ascendente" descrita por Mol y Bus (2011), y el papel de los docentes para despertar el gusto por leer (Grupo Fórmula, 2024). Por último, conocer qué perfiles crecen o se reducen permite evaluar si el objetivo de fomento de la lectura que INEGI se planteó al crear MOLEC se está cumpliendo, y en qué segmentos de la población no.
+
+# 3. Descripción y preparación de los datos
+
+```{r cifras-etapa1}
+# ---- Cifras de la Etapa 1: base 2025 y columnas comunes ----
+M25 <- read.csv("datos/2025/Datos_molec_2025.csv", check.names = FALSE)
+names(M25) <- tolower(names(M25))
+comunes <- Reduce(intersect, lapply(bases, names))
+n25_menores <- sum(M25$edad < 18, na.rm = TRUE)
+tiene_factor25 <- any(grepl("^fac", names(M25)))
+tiene_entidad25 <- "entidad" %in% names(M25)
+```
+
+## 3.1 Bases de datos y estructura
+
+Se cuenta con los microdatos de MOLEC de 2019 a 2025, sus diccionarios y el cuestionario. Cada registro corresponde a **una persona** de 18 años o más seleccionada en una vivienda (Tabla \ref{tab:tabla-dim}).
+
+```{r tabla-dim}
+dims <- rbind(Registros = c(sapply(bases, nrow), nrow(M25)),
+              Columnas = c(sapply(bases, ncol), ncol(M25)))
+colnames(dims) <- c(names(bases), "2025")
+tabla(dims, "Dimensiones de las bases de datos MOLEC.")
+```
+
+Como verificación de la lectura y la ponderación de los datos, los porcentajes que calculamos con el factor de expansión reproducen las cifras oficiales de 2024 citadas en la sección 1.2. Las bases 2019–2024 comparten el mismo cuestionario (`r length(comunes)` columnas comunes) y suman `r fmt(n_bruto)` registros. Sus variables cubren identificación y diseño muestral, datos sociodemográficos, lectura de cada material (preguntas 1–25), prácticas de lectura (26–32), asistencia a espacios de lectura (33) y antecedentes en la infancia y la primaria (34–36). Al integrarlas se verificó que las variables seleccionadas tienen la misma redacción y la misma codificación en los seis años (1 Sí, 2 No, 3 No recuerda, 0 = blanco por pase). Solo cambian el orden de las columnas, algunos nombres en 2019–2021 (`n_ren_ele` por `n_ren_el`, `P36_1` en mayúsculas), que se homologaron, y el rango declarado de algunos conteos (`p4`: 01–99 hasta 2023 y 01–70 en 2024). Además, el diccionario de 2019 asigna por error el nemónico `p3_5` a la pregunta 4 (número de libros), aunque en la base la columna se llama `p4`.
+
+La base de **2025** responde a un **cuestionario rediseñado**: tiene otros nombres de variables (`m_p*`, `v_p*`), amplía "libro" a "libros, manuales o documentos, aunque no se hayan terminado", incluye `r n25_menores` personas de 12 a 17 años y el archivo `r if (!tiene_factor25 && !tiene_entidad25) "no trae factor de expansión ni entidad federativa" else "cambia las variables de diseño muestral"`. Por eso, como se señaló en la sección 1.3, no es comparable con los años anteriores: el porcentaje (sin ponderar) de adultos que declaró leer libros salta a `r round(100*mean(pmin(M25$m_p2a, M25$m_p3a, na.rm = TRUE)[M25$edad >= 18] == 1, na.rm = TRUE), 1)`%, frente a `r lib24`% en 2024, una diferencia atribuible sobre todo al cambio de definición.
+
+## 3.2 Selección de años, población y variables
+
+**Años.** Se usan las bases **2019–2024**, seis levantamientos comparables (mismo cuestionario y mes, con factor de expansión) que cubren antes, durante y después de la pandemia. **Se excluye 2025** del modelo por el rediseño descrito en la sección 3.1.
+
+**Población.** Solo la población alfabeta (`p1 = 1`), que es a la que se aplica el módulo.
+
+**Variables.** La Tabla \ref{tab:tabla-variables} describe las 25 variables de MOLEC seleccionadas, organizadas por su papel en el análisis, y los siete atributos que se derivaron de ellas en esta etapa.
+
+```{r tabla-variables}
+mx <- function(v) max(D[[v]], na.rm = TRUE)
+falt <- function(v) { k <- sum(is.na(D[[v]])); if (k == 0) "0" else paste0(fmt(k), " (", f1(100 * k / nrow(D)), "%)") }
+sn <- "1 Sí, 0 No"; bin <- "Nominal (binaria)"
+vars_t <- tribble(
+  ~Variable, ~`Descripción (pregunta de MOLEC)`, ~Tipo, ~`Valores o categorías`, ~Papel,
+  "anio", "Año del levantamiento", "Ordinal", "2019–2024", "Tendencia",
+  "factor", "Factor de expansión", "Numérica", "personas que representa", "Ponderación",
+  "acostumbra", "p2. Acostumbra leer", bin, sn, "Agrupamiento",
+  "lee_libros", "p3_1. Leyó libros en los últimos 12 meses", bin, sn, "Agrupamiento",
+  "lee_revistas", "p3_2. Leyó revistas en los últimos 3 meses", bin, sn, "Agrupamiento",
+  "lee_periodicos", "p3_3. Leyó periódicos la semana pasada", bin, sn, "Agrupamiento",
+  "lee_historietas", "p3_4. Lee historietas", bin, sn, "Agrupamiento",
+  "lee_internet", "p3_5. Lee páginas de internet, foros o blogs (sin redes sociales)", bin, sn, "Agrupamiento",
+  "n_libros", "p4. Libros leídos en 12 meses", "Numérica discreta", paste0("libros, 0–", mx("n_libros"), " (0 = no leyó)"), "Agrupamiento",
+  "n_revistas", "p10. Revistas leídas en 3 meses", "Numérica discreta", paste0("revistas, 0–", mx("n_revistas")), "Agrupamiento",
+  "n_periodicos", "p16. Periódicos leídos la semana pasada", "Numérica discreta", paste0("periódicos, 0–", mx("n_periodicos")), "Agrupamiento",
+  "minutos", "p26. Minutos continuos que lee", "Numérica", paste0("minutos, 1–", mx("minutos")), "Agrupamiento",
+  "lib_digital", "p8_1. Leyó libros en formato digital", bin, sn, "Agrupamiento",
+  "sexo", "Sexo", "Nominal", "Hombre, Mujer", "Validación",
+  "edad", "Edad", "Numérica discreta", paste0("años, 18–", mx("edad")), "Validación",
+  "nivel", "Nivel de instrucción", "Ordinal", "0 Ninguno, 1 Preescolar, 2 Primaria, 3 Secundaria, 4 Bachillerato, 5 Normal, 6 Carrera técnica, 7 Profesional, 8 Maestría, 9 Doctorado", "Validación",
+  "entidad", "Entidad federativa de la ciudad", "Nominal", "01–32", "Validación",
+  "inf_bibliotecas", "p34_1. Infancia: lo llevaban a bibliotecas o librerías", bin, sn, "Validación",
+  "inf_veia_leer", "p34_2. Infancia: veía leer a sus padres o tutores", bin, sn, "Validación",
+  "inf_le_leian", "p34_3. Infancia: sus padres o tutores le leían", bin, sn, "Validación",
+  "inf_libros_casa", "p34_4. Infancia: había libros (no de texto) en casa", bin, sn, "Validación",
+  "esc_pedian_leer", "p36_1. Primaria: le pedían leer otros libros", bin, sn, "Validación",
+  "esc_comentar", "p36_2. Primaria: le pedían comentar lo leído", bin, sn, "Validación",
+  "esc_motivaban", "p36_3. Primaria: lo motivaban a leer otros libros", bin, sn, "Validación",
+  "esc_bibliotecas", "p36_4. Primaria: lo animaban a visitar bibliotecas", bin, sn, "Validación",
+  "tipo_lector", "Derivada de mat_lec (INEGI): materiales leídos", "Nominal", "No lee, Solo otros materiales, Solo libros, Libros y otros", "Exploración",
+  "n_materiales", "Derivada de p3_1–p3_5: número de materiales leídos", "Numérica discreta", "0–5", "Exploración",
+  "grupo_edad", "Derivada de edad", "Ordinal", "18-29, 30-44, 45-59, 60+", "Validación",
+  "escolaridad", "Derivada de nivel", "Ordinal", "Primaria o menos (0–2), Secundaria (3), Media superior (4–6), Superior (7–9)", "Validación",
+  "ind_hogar", "Derivada de p34_1–p34_4: estímulos a la lectura en el hogar", "Numérica discreta", "0–4", "Validación",
+  "ind_escuela", "Derivada de p36_1–p36_4: estímulos a la lectura en la primaria", "Numérica discreta", "0–4", "Validación",
+  "particion", "Derivada: subconjunto para el modelado (sección 3.4)", "Nominal", "entrenamiento, validacion, prueba", "Modelado")
+stopifnot(setequal(vars_t$Variable, names(D)))
+vars_t <- vars_t %>% mutate(Faltantes = sapply(Variable, falt), .before = Papel)
+kbl(vars_t, booktabs = TRUE, longtable = TRUE, linesep = "",
+    caption = paste0("Variables de la base preparada: las 25 seleccionadas en la Etapa 1 (arriba de la línea) y las 7 derivadas en la Etapa 2 (abajo). Faltantes sobre ", fmt(nrow(D)), " registros; en minutos y lib\\_digital son personas a quienes la pregunta no aplica.")) %>%
+  kable_styling(latex_options = c("hold_position", "repeat_header"), repeat_header_text = "(continuación)", font_size = 7) %>%
+  column_spec(2, width = "3.5cm") %>% column_spec(3, width = "1.6cm") %>% column_spec(4, width = "3.4cm") %>%
+  row_spec(25, hline_after = TRUE)
+```
+
+Las variables de **agrupamiento** describen el *comportamiento lector* y son las que usa *k-means* para formar los perfiles; cuatro de ellas son cuantitativas. Las de **validación** no entran al algoritmo: se usan después para comprobar, con pruebas de independencia ($\chi^2$) y de comparación de medias (ANOVA / Kruskal–Wallis), que los perfiles difieren en quiénes son las personas y en qué antecedentes tuvieron, lo que da evidencia de que la división no es arbitraria y ubica las áreas de oportunidad (hogar y escuela). Se descartaron las preguntas abiertas ("especifique"), casi siempre vacías; el gasto en materiales (`p7_3`, `p13_3`, `p19_3`), que solo aplica a quien compró e incluye el código especial 999999; los tipos de libro o revista, que solo aplican a lectores de cada material; y las variables de control de la vivienda. Los porcentajes se ponderan con el factor de expansión para que representen a la población de cada año (en el tipo de lector por año difieren a lo más `r f1(dif_pond)` puntos de los porcentajes sin ponderar); las medidas de las variables numéricas describen la muestra.
+
+## 3.3 Calidad de los datos
+
+Las únicas celdas vacías en las variables seleccionadas son `r n_na_orig` valores de `mat_lec` en 2019, `r if (na_orig_analf) "todos de personas que no saben leer" else "que se revisaron caso por caso"`. Eso no significa que las bases estén completas: los "blancos por pase" (preguntas que no se hacen por una respuesta anterior) se codifican como 0. Por ejemplo, a quien no sabe leer no se le hace ninguna pregunta posterior, y a quien no leyó libros no se le pregunta cuántos leyó. Por eso se revisó en el diccionario el significado de cada código especial antes de decidir qué hacer con él (Tabla \ref{tab:tabla-calidad}). No hay valores fuera del rango del diccionario de su año (edad de `r q$edad[1]` a `r q$edad[2]`; `p26` hasta `r q$p26_max` minutos, dentro del rango 001–999; `p4` hasta `r q$p4_max24` en 2024) ni registros duplicados (`r n_dup_id` claves de persona repetidas en un año y `r n_dup_resp` filas con respuestas idénticas).
+
+```{r tabla-calidad}
+calidad <- tribble(
+  ~`Código encontrado`, ~`Significado (diccionario)`, ~`Decisión`, ~Registros,
+  "p1 = 2", "No sabe leer: el resto del módulo no se aplica", "Se excluye de la población", fmt(q$analf),
+  "nivel = 99", "Escolaridad no especificada", "NA; se conserva el registro", fmt(q$nivel99),
+  "p4, p10, p16 = 0", "Pase: no leyó ese material", "Cero válido (0 libros, revistas…)", paste(fmt(q$p4_0), fmt(q$p10_0), fmt(q$p16_0), sep = " / "),
+  "p26 = 0", "Pase: no lee ningún material", "NA (no aplica) en minutos", fmt(q$p26_0),
+  "p8_1 = 0", "Pase: no leyó libros", "NA (no aplica) en lib_digital", fmt(q$p8_0),
+  "p34_*, p36_* = 3", "No recuerda", "NA", paste(q$nr, collapse = "–"),
+  "p36_* = 0", "Pase: no asistió a la primaria (p35 = 2)", "NA (no aplica)", fmt(q$p36_0),
+  "p4, p10 = 99", "Dentro del rango 01–99 de su año", "Valor válido, atípico; se conserva", fmt(q$n99))
+tabla(calidad, "Códigos especiales revisados en la población alfabeta y decisión tomada.")
+```
+
+**Cambios respecto a la Etapa 1.** Esta revisión corrigió tres decisiones (Tabla \ref{tab:tabla-calidad}): el 99 de los conteos ahora se conserva, los pases de `p26` y `p8_1` se tratan como "no aplica" en lugar de cero, y ya no se eliminan los registros con algún "No recuerda" en los antecedentes ni los de escolaridad no especificada. Este último cambio es el más importante: `na.omit()` descartaba `r fmt(e1$n[2])` personas (`r f1(100 * e1$n[2] / sum(e1$n))`%), de mayor edad (`r f1(e1$edad[2])` frente a `r f1(e1$edad[1])` años) y menos lectoras (`r f1(e1$lectores[2])`% frente a `r f1(e1$lectores[1])`%), lo que sesgaba la base hacia personas jóvenes y lectoras. Ahora cada faltante se excluye solo del análisis de su variable, y la base de trabajo pasa de `r fmt(e1$n[1])` a `r fmt(nrow(D))` registros.
+
+## 3.4 Base preparada y partición en entrenamiento, validación y prueba
+
+La base preparada se guardó como `BasePreparada_MOLEC_2019_2024.csv`. Atendiendo a la retroalimentación de la Etapa 1, antes de modelar se dividió al azar en tres subconjuntos ajenos (70/15/15 %, estratificados por año). Con el de **entrenamiento** (`r fmt(pt("n")["entrenamiento"])` registros) se *ajusta* el modelo: ahí *k-means* calcula los centroides y la estandarización de las variables. El de **validación** (`r fmt(pt("n")["validacion"])`) no interviene en el ajuste; sirve para *elegir* entre alternativas (por ejemplo, el número de grupos o la transformación de los conteos) según qué tan separados y estables resultan los grupos en datos que no se usaron para ajustar. El de **prueba** (`r fmt(pt("n")["prueba"])`) se guarda hasta el final y se usa una sola vez para evaluar el modelo elegido con datos que nunca vio; si se usara para decidir, la evaluación dejaría de ser honesta (Hastie et al., 2009). Esta división es distinta de la validación externa del objetivo 2 (sección 2.1): aquella compara los perfiles con variables que no se usaron para formarlos, mientras que esta comprueba que los perfiles se reproducen en personas que no se usaron para ajustarlos. Los tres subconjuntos son semejantes (no lectores: `r f1(pt("nolee")["entrenamiento"])`%, `r f1(pt("nolee")["validacion"])`% y `r f1(pt("nolee")["prueba"])`%; edad media: `r f1(pt("edad")["entrenamiento"])`, `r f1(pt("edad")["validacion"])` y `r f1(pt("edad")["prueba"])` años). El análisis descriptivo de las secciones 4 y 5 usa la base completa, porque describe a la población y no estima parámetros del modelo.
+
+# 4. Descripción individual de las variables
+
+```{r medidas}
+desc <- function(x) {
+  x <- x[!is.na(x)]
+  c(n = length(x), Media = mean(x), Mediana = median(x), `Rango medio` = (min(x) + max(x)) / 2,
+    DE = sd(x), `CV (%)` = 100 * sd(x) / mean(x), Q1 = unname(quantile(x, .25)),
+    Q3 = unname(quantile(x, .75)), `Mín.` = min(x), `Máx.` = max(x), Sesgo = skewness(x), Curtosis = kurtosis(x))
+}
+med <- rbind(`Edad (años)` = desc(D$edad),
+             `Libros en 12 meses*` = desc(D$n_libros[D$lee_libros == 1]),
+             `Revistas en 3 meses*` = desc(D$n_revistas[D$lee_revistas == 1]),
+             `Periódicos la semana pasada*` = desc(D$n_periodicos[D$lee_periodicos == 1]),
+             `Minutos continuos de lectura*` = desc(D$minutos),
+             `Materiales leídos (0–5)` = desc(D$n_materiales))
+atip <- function(x) { x <- x[!is.na(x)]; lim <- quantile(x, .75) + 1.5 * IQR(x); c(lim = unname(lim), n = sum(x > lim)) }
+at_lib <- atip(D$n_libros[D$lee_libros == 1]); at_min <- atip(D$minutos); at_edad <- atip(D$edad)
+ml <- med["Libros en 12 meses*", ]; mm <- med["Minutos continuos de lectura*", ]; me <- med["Edad (años)", ]
+```
+
+**Variables numéricas.** La edad es casi simétrica (media de `r f1(me["Media"])` y mediana de `r me["Mediana"]` años; sesgo de `r f1(me["Sesgo"])`), más aplanada que una normal (curtosis de `r f1(me["Curtosis"])`) y casi sin valores inusuales (`r at_edad["n"]` personas mayores de `r at_edad["lim"]` años); la mitad central tiene entre `r me["Q1"]` y `r me["Q3"]` años. Los conteos de lectura muestran el patrón contrario (Tabla \ref{tab:tabla-medidas}, Figura \ref{fig:fig-hist}). Entre quienes leyeron libros, la mediana es de `r ml["Mediana"]` y la mitad central leyó entre `r ml["Q1"]` y `r ml["Q3"]` libros, pero la media (`r f1(ml["Media"])`) y el rango medio (`r f1(ml["Rango medio"])`) son arrastrados por una cola derecha larga (sesgo de `r f1(ml["Sesgo"])`, curtosis de `r f1(ml["Curtosis"])` y CV de `r round(ml["CV (%)"])`%). Según la regla de 1.5 veces el rango intercuartílico, `r fmt(at_lib["n"])` personas (`r f1(100 * at_lib["n"] / ml["n"])`%) leyeron más de `r at_lib["lim"]` libros. Son valores válidos de lectores intensivos, quizá uno de los perfiles buscados, así que se conservan; en la Etapa 3 se transformarán con $\log(1 + x)$ para que no dominen las distancias de *k-means*. Los minutos se comportan igual (mediana de `r mm["Mediana"]`, Q1 = `r mm["Q1"]`, Q3 = `r mm["Q3"]` y media de `r f1(mm["Media"])`; `r at_min["n"]` personas reportan más de `r at_min["lim"]`) y se concentran en valores redondos (30, 60 o 120), algo típico del autorreporte. Así, el lector "típico" lee poco y en sesiones cortas, y la media sobreestima lo que lee la mayoría; por eso las comparaciones se basan sobre todo en medianas y cuartiles.
+
+```{r tabla-medidas}
+med_t <- as.data.frame(med) %>% mutate(n = fmt(n), across(-n, ~ round(.x, 2)))
+tabla(med_t, "Medidas descriptivas de las variables numéricas (muestra sin ponderar).", ajustar = TRUE) %>%
+  footnote(general = "* Solo quienes leyeron ese material (minutos: quienes leen algún material); quien no lo leyó tiene 0 por definición y su proporción se describe en las variables categóricas. Curtosis en exceso (0 = normal).",
+           general_title = "", threeparttable = TRUE)
+```
+
+```{r fig-hist, fig.height=1.6, fig.cap="Distribución de la edad, de los libros leídos en 12 meses (solo lectores de libros; se omiten valores mayores a 30) y de los minutos continuos de lectura (solo lectores; se omiten valores mayores a 180). Línea continua: mediana; discontinua: media."}
+hist_panel <- function(x, bw, lim, titulo, eje) {
+  x <- x[!is.na(x)]
+  ggplot(data.frame(x = x[x <= lim]), aes(x)) +
+    geom_histogram(binwidth = bw, boundary = 0, closed = "left", fill = azul, colour = "white", linewidth = 0.2) +
+    geom_vline(xintercept = median(x), linewidth = 0.6) +
+    geom_vline(xintercept = mean(x), linewidth = 0.6, linetype = "22") +
+    labs(title = titulo, x = eje, y = "Personas") + tema
+}
+gridExtra::grid.arrange(
+  hist_panel(D$edad, 5, 100, "Edad", "años"),
+  hist_panel(D$n_libros[D$lee_libros == 1], 1, 30, "Libros leídos", "libros en 12 meses"),
+  hist_panel(D$minutos, 10, 180, "Tiempo de lectura", "minutos continuos"), ncol = 3)
+```
+
+```{r categoricas}
+w_tab <- function(v) D %>% filter(!is.na(.data[[v]])) %>% group_by(Categoría = .data[[v]]) %>%
+  summarise(n = n(), w = sum(factor)) %>%
+  mutate(`% muestra` = 100 * n / sum(n), `% ponderado` = 100 * w / sum(w), `% acumulado` = cumsum(`% ponderado`)) %>%
+  select(-w)
+mat <- sapply(c(Libros = "lee_libros", `Internet (páginas, foros, blogs)` = "lee_internet", Revistas = "lee_revistas",
+                `Periódicos` = "lee_periodicos", Historietas = "lee_historietas", `Acostumbra leer` = "acostumbra"),
+              function(v) wp(D[[v]], D$factor))
+cat_tabs <- list(`Tipo de lector` = w_tab("tipo_lector"), Escolaridad = w_tab("escolaridad"),
+                 `Grupo de edad` = w_tab("grupo_edad"), Sexo = w_tab("sexo"),
+                 `Estímulos en el hogar` = w_tab("ind_hogar"), `Estímulos en la primaria` = w_tab("ind_escuela"))
+ordinales <- c("Escolaridad", "Grupo de edad", "Estímulos en el hogar", "Estímulos en la primaria")
+med_ord <- function(t) as.character(t$Categoría[which(t$`% acumulado` >= 50)[1]])
+nm <- function(t, v) setNames(t[[v]], t$Categoría)
+tl <- nm(cat_tabs[["Tipo de lector"]], "% ponderado"); esc_ac <- nm(cat_tabs$Escolaridad, "% acumulado")
+sx <- nm(cat_tabs$Sexo, "% muestra"); sxw <- nm(cat_tabs$Sexo, "% ponderado"); ih <- nm(cat_tabs$`Estímulos en el hogar`, "% ponderado")
+so <- D$tipo_lector == "Solo otros materiales"
+acost_otros <- 100 - wp(D$acostumbra[so], D$factor[so])
+items <- c(inf_bibliotecas = "Lo llevaban a bibliotecas o librerías", inf_veia_leer = "Veía leer a sus padres o tutores",
+           inf_le_leian = "Sus padres o tutores le leían", inf_libros_casa = "Había libros (no de texto) en casa",
+           esc_pedian_leer = "Le pedían leer otros libros", esc_comentar = "Le pedían comentar lo leído",
+           esc_motivaban = "Lo motivaban a leer otros libros", esc_bibliotecas = "Lo animaban a visitar bibliotecas")
+ant <- sapply(names(items), function(v) wp(D[[v]], D$factor))
+nombres_ent <- c("Aguascalientes", "Baja California", "Baja California Sur", "Campeche", "Coahuila", "Colima",
+                 "Chiapas", "Chihuahua", "Ciudad de México", "Durango", "Guanajuato", "Guerrero", "Hidalgo",
+                 "Jalisco", "México", "Michoacán", "Morelos", "Nayarit", "Nuevo León", "Oaxaca", "Puebla",
+                 "Querétaro", "Quintana Roo", "San Luis Potosí", "Sinaloa", "Sonora", "Tabasco", "Tamaulipas",
+                 "Tlaxcala", "Veracruz", "Yucatán", "Zacatecas")
+ent <- D %>% group_by(entidad) %>% summarise(n = n(), p = wp(tipo_lector == "No lee", factor)) %>%
+  mutate(nombre = nombres_ent[entidad]) %>% arrange(p)
+```
+
+**Variables categóricas.** En la población representada, `r f1(tl["No lee"])`% no leyó ninguno de los materiales que considera MOLEC, `r f1(tl["Solo otros materiales"])`% leyó otros materiales pero no libros, `r f1(tl["Solo libros"])`% leyó solo libros y `r f1(tl["Libros y otros"])`%, libros y algún otro material (Tabla \ref{tab:tabla-cat}). En los seis años, los libros (`r f1(mat["Libros"])`%) y las páginas de internet (`r f1(mat[2])`%) son lo más leído, muy por encima de revistas, periódicos e historietas (Figura \ref{fig:fig-tendencia}). En las variables ordinales, la categoría mediana es **media superior** en la escolaridad (el porcentaje acumulado pasa de `r f1(esc_ac["Secundaria"])`% en secundaria a `r f1(esc_ac["Media superior"])`% en media superior), **`r sub("-", " a ", med_ord(cat_tabs[["Grupo de edad"]]))` años** en la edad, **`r med_ord(cat_tabs[["Estímulos en el hogar"]])` estímulos** en el hogar y **`r med_ord(cat_tabs[["Estímulos en la primaria"]])`** en la primaria: los estímulos escolares fueron más comunes que los del hogar, donde `r f1(ih["0"])`% no tuvo ninguno. El antecedente más frecuente en casa fue tener libros (`r f1(ant["inf_libros_casa"])`%) y el menos frecuente, que lo llevaran a bibliotecas (`r f1(ant["inf_bibliotecas"])`%); por entidad, el porcentaje de no lectores va de `r f1(min(ent$p))`% a `r f1(max(ent$p))`% (Anexo 1). La muestra tiene más mujeres (`r f1(sx["Mujer"])`%) que la población (`r f1(sxw["Mujer"])`%), lo que confirma la necesidad de ponderar. Por último, `r f1(mat["Acostumbra leer"])`% dice que acostumbra leer, pero `r f1(acost_otros)`% de quienes solo leen otros materiales dice que no: leer en internet o revistas no siempre se percibe como "leer".
+
+```{r tabla-cat}
+bloque <- function(vs) bind_rows(lapply(vs, function(v) cat_tabs[[v]] %>%
+  transmute(Variable = c(v, rep("", n() - 1)), `Categoría` = as.character(Categoría), n = fmt(n),
+            `% pond.` = f1(`% ponderado`), `% acum.` = if (v %in% ordinales) f1(`% acumulado`) else "")))
+izq <- bloque(c("Tipo de lector", "Escolaridad", "Estímulos en el hogar")); der <- bloque(c("Grupo de edad", "Sexo", "Estímulos en la primaria"))
+der[nrow(der) + seq_len(nrow(izq) - nrow(der)), ] <- ""
+tabla(cbind(izq, der), "Distribución de frecuencias de las variables categóricas, población alfabeta 2019–2024 (n de la muestra y \\% ponderado; el \\% acumulado solo en las ordinales).",
+      escape = TRUE, col.names = rep(names(izq), 2), ajustar = TRUE) %>% column_spec(6, border_left = TRUE)
+```
+
+# 5. Comparaciones relacionadas con el objetivo
+
+## 5.1 Cambios entre 2019 y 2024
+
+```{r anual}
+anual <- D %>% group_by(anio) %>% summarise(
+  `Materiales leídos (media)` = weighted.mean(n_materiales, factor),
+  `Libros: mediana (Q1–Q3)*` = sprintf("%g (%g–%g)", median(n_libros[lee_libros == 1]),
+                                       quantile(n_libros[lee_libros == 1], .25), quantile(n_libros[lee_libros == 1], .75)),
+  `Libros: media*` = mean(n_libros[lee_libros == 1]),
+  `Libro digital (%)*` = wp(lib_digital, factor),
+  `Minutos: mediana (Q1–Q3)` = sprintf("%g (%g–%g)", median(minutos, na.rm = TRUE),
+                                       quantile(minutos, .25, na.rm = TRUE), quantile(minutos, .75, na.rm = TRUE)))
+tipo_anio <- D %>% group_by(anio, tipo_lector) %>% summarise(w = sum(factor), .groups = "drop") %>%
+  group_by(anio) %>% mutate(p = 100 * w / sum(w)) %>% ungroup()
+ta <- function(a, t) tipo_anio$p[tipo_anio$anio == a & tipo_anio$tipo_lector == t]
+an <- function(a, v) anual[[v]][anual$anio == a]
+```
+
+```{r fig-tipo-anio, fig.height=1.7, fig.cap="Distribución ponderada del tipo de lector por año, población alfabeta de 18 años y más (\\%)."}
+ggplot(tipo_anio, aes(p, factor(anio), fill = tipo_lector)) +
+  geom_col(width = 0.75, colour = "white", linewidth = 0.4, position = position_stack(reverse = TRUE)) +
+  geom_text(aes(label = f1(p)), position = position_stack(vjust = 0.5, reverse = TRUE), size = 2.6, colour = "#0b0b0b") +
+  scale_fill_manual(values = col_tipo) + scale_y_discrete(limits = rev) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.01))) +
+  labs(x = "% de la población", y = NULL, fill = NULL) + tema
+```
+
+```{r tabla-anual}
+anual_t <- anual %>% mutate(across(where(is.double), ~ f1(.x)))
+tabla(t(anual_t[, -1]) %>% `colnames<-`(anual_t$anio),
+      "Indicadores complementarios de lectura por año (\\% y media de materiales ponderados; medidas de los conteos sobre la muestra).", escape = TRUE) %>%
+  footnote(general = "* Solo quienes leyeron libros.", general_title = "", threeparttable = TRUE)
+```
+
+La sección 2.2 mostró que, entre 2019 y 2024, la lectura de libros casi no cambió mientras la no lectura aumentó (Figura \ref{fig:fig-tendencia}). La Figura \ref{fig:fig-tipo-anio}, el resultado más relevante para la pregunta de investigación, muestra que **detrás de esa estabilidad cambió la composición de los lectores**. La no lectura alcanzó su valor más alto en 2023 (`r f1(ta(2023, "No lee"))`%). Quienes leen solo otros materiales bajaron de `r f1(ta(2019, "Solo otros materiales"))`% a `r f1(ta(2024, "Solo otros materiales"))`%, y quienes combinan libros con otros materiales, de `r f1(ta(2019, "Libros y otros"))`% a `r f1(ta(2024, "Libros y otros"))`%. En cambio, quienes leen *solo* libros casi se duplicaron (de `r f1(ta(2019, "Solo libros"))`% a `r f1(ta(2024, "Solo libros"))`%). Es decir, los lectores de libros dejaron de leer otros materiales, y el número medio de materiales leídos bajó de `r f1(an(2019, "Materiales leídos (media)"))` a `r f1(an(2024, "Materiales leídos (media)"))` (Tabla \ref{tab:tabla-anual}). La intensidad casi no cambió: la mediana fue de 2 libros y 30 minutos en todos los años, y solo la media de libros subió durante la pandemia (`r f1(an(2022, "Libros: media*"))` en 2022) antes de volver a `r f1(an(2024, "Libros: media*"))` en 2024. El cambio de formato fue más marcado: la lectura de libros digitales pasó de `r f1(an(2020, "Libro digital (%)*"))`% en 2020 a `r f1(an(2021, "Libro digital (%)*"))`% en 2021 y se mantuvo en ese nivel (`r f1(an(2024, "Libro digital (%)*"))`% en 2024).
+
+## 5.2 Libros leídos según escolaridad y edad
+
+```{r grupos}
+por_grupo <- function(g) D %>% filter(lee_libros == 1, !is.na(.data[[g]])) %>% group_by(Grupo = .data[[g]]) %>%
+  summarise(n = n(), Mediana = median(n_libros), Q1 = quantile(n_libros, .25), Q3 = quantile(n_libros, .75),
+            Media = mean(n_libros), DE = sd(n_libros), `Máx.` = max(n_libros))
+g_esc <- por_grupo("escolaridad"); g_edad <- por_grupo("grupo_edad"); g_sexo <- por_grupo("sexo")
+ge <- function(t, g, v) t[[v]][t$Grupo == g]
+```
+
+Entre quienes leyeron libros, la cantidad aumenta con la escolaridad (Figura \ref{fig:fig-box}): la mediana pasa de `r ge(g_esc, "Primaria o menos", "Mediana")` libro con primaria o menos (Q3 = `r ge(g_esc, "Primaria o menos", "Q3")`) a `r ge(g_esc, "Superior", "Mediana")` con educación superior (Q1 = `r ge(g_esc, "Superior", "Q1")`, Q3 = `r ge(g_esc, "Superior", "Q3")`), y la media, de `r f1(ge(g_esc, "Primaria o menos", "Media"))` a `r f1(ge(g_esc, "Superior", "Media"))`. El grupo con educación superior también es el más heterogéneo (DE de `r f1(ge(g_esc, "Superior", "DE"))` frente a `r f1(ge(g_esc, "Primaria o menos", "DE"))`) y concentra a los lectores más intensivos. Por edad, el grupo de 18 a 29 años tiene la mediana más alta (`r ge(g_edad, "18-29", "Mediana")` libros; Q1 = `r ge(g_edad, "18-29", "Q1")`, Q3 = `r ge(g_edad, "18-29", "Q3")`) y los demás grupos tienen una mediana de `r ge(g_edad, "30-44", "Mediana")`. En todos los grupos la media supera a la mediana y hay valores atípicos hacia arriba: la asimetría se mantiene dentro de cada grupo. Las medidas completas, incluidas las de sexo, están en el Anexo 2.
+
+```{r fig-box, fig.height=1.75, fig.cap="Libros leídos en 12 meses por escolaridad y por grupo de edad, solo lectores de libros (eje en escala logarítmica). El rombo indica la media."}
+box_panel <- function(g, titulo) {
+  d <- D %>% filter(lee_libros == 1, !is.na(.data[[g]]))
+  ggplot(d, aes(.data[[g]], n_libros)) +
+    geom_boxplot(fill = "#b7d3f6", colour = "#184f95", width = 0.55, outlier.size = 0.5, outlier.alpha = 0.4, linewidth = 0.35) +
+    stat_summary(fun = mean, geom = "point", shape = 23, size = 1.6, fill = "white", colour = "#0b0b0b") +
+    coord_trans(y = "log10") + scale_y_continuous(breaks = c(1, 2, 5, 10, 20, 50, 100)) +
+    labs(title = titulo, x = NULL, y = "Libros (escala log)") + tema
+}
+gridExtra::grid.arrange(box_panel("escolaridad", "Por escolaridad"), box_panel("grupo_edad", "Por grupo de edad"),
+                        ncol = 2, widths = c(1.25, 1))
+```
+
+## 5.3 Tipo de lector según escolaridad y antecedentes en el hogar
+
+```{r cruces}
+cruce <- function(g) D %>% filter(!is.na(.data[[g]])) %>% group_by(Grupo = .data[[g]], tipo_lector) %>%
+  summarise(w = sum(factor), .groups = "drop") %>% group_by(Grupo) %>% mutate(p = 100 * w / sum(w)) %>% ungroup()
+c_esc <- cruce("escolaridad"); c_hog <- cruce("ind_hogar"); c_edad <- cruce("grupo_edad")
+cp <- function(t, g, tipo) t$p[t$Grupo == g & t$tipo_lector == tipo]
+# Lectura de libros por escolaridad y libros en casa durante la infancia
+lib_casa <- D %>% filter(!is.na(escolaridad), !is.na(inf_libros_casa)) %>% group_by(escolaridad, inf_libros_casa) %>%
+  summarise(p = wp(lee_libros, factor), .groups = "drop")
+lc <- function(e, c) f1(lib_casa$p[lib_casa$escolaridad == e & lib_casa$inf_libros_casa == c])
+hog_esc <- D %>% filter(!is.na(escolaridad)) %>% group_by(escolaridad) %>% summarise(h = mean(ind_hogar, na.rm = TRUE))
+esc_ind <- D %>% filter(!is.na(ind_escuela)) %>% group_by(ind_escuela) %>% summarise(p = wp(tipo_lector == "No lee", factor))
+```
+
+La escolaridad es la variable con mayor contraste (Figura \ref{fig:fig-cruces}): con primaria o menos, `r f1(cp(c_esc, "Primaria o menos", "No lee"))`% no lee ningún material y solo `r f1(cp(c_esc, "Primaria o menos", "Libros y otros"))`% combina libros con otros materiales; con educación superior, `r f1(cp(c_esc, "Superior", "No lee"))`% y `r f1(cp(c_esc, "Superior", "Libros y otros"))`%. Los antecedentes en el hogar muestran un gradiente semejante: no lee `r f1(cp(c_hog, 0, "No lee"))`% de quienes no tuvieron ningún estímulo en la infancia y `r f1(cp(c_hog, 4, "No lee"))`% de quienes tuvieron los cuatro. Como ambas variables están relacionadas (índice medio de `r f1(hog_esc$h[1])` con primaria o menos y de `r f1(hog_esc$h[4])` con educación superior), se comparó la lectura de libros *dentro* de cada nivel: haber tenido libros en casa se asocia con más lectura en todos los niveles: de `r lc("Primaria o menos", 0)`% a `r lc("Primaria o menos", 1)`% con primaria o menos, y de `r lc("Superior", 0)`% a `r lc("Superior", 1)`% con educación superior. Con los estímulos en la primaria la relación es más débil (no lectores: `r f1(esc_ind$p[1])`% con 0 y `r f1(esc_ind$p[5])`% con 4). Un resultado inesperado es que el grupo que **solo lee libros** no crece con la escolaridad (entre `r f1(min(c_esc$p[c_esc$tipo_lector == "Solo libros"]))`% y `r f1(max(c_esc$p[c_esc$tipo_lector == "Solo libros"]))`%), pero sí con la edad (de `r f1(cp(c_edad, "18-29", "Solo libros"))`% entre 18 y 29 años a `r f1(cp(c_edad, "60+", "Solo libros"))`% a partir de los 60; Anexo 2), lo que sugiere un perfil distinto del lector escolarizado que lee de todo.
+
+```{r fig-cruces, fig.height=1.8, fig.cap="Distribución ponderada del tipo de lector dentro de cada nivel de escolaridad y según el número de estímulos a la lectura en el hogar durante la infancia (\\% por fila)."}
+niveles <- c(rev(levels(D$escolaridad)), paste(4:0, "estímulos"))
+bind_rows(c_esc %>% mutate(Panel = "Escolaridad", Grupo = as.character(Grupo)),
+          c_hog %>% mutate(Panel = "Estímulos a la lectura en el hogar", Grupo = paste(Grupo, "estímulos"))) %>%
+  mutate(Grupo = factor(Grupo, niveles)) %>%
+  ggplot(aes(p, Grupo, fill = tipo_lector)) +
+  geom_col(width = 0.75, colour = "white", linewidth = 0.4, position = position_stack(reverse = TRUE)) +
+  geom_text(aes(label = round(p)), position = position_stack(vjust = 0.5, reverse = TRUE), size = 2.4, colour = "#0b0b0b") +
+  facet_wrap(~ Panel, scales = "free_y") +
+  scale_fill_manual(values = col_tipo) + scale_x_continuous(expand = expansion(mult = c(0, 0.02))) +
+  labs(x = "% del grupo", y = NULL, fill = NULL) + tema
+```
+
+## 5.4 ¿Dentro de qué grupos aumentó la no lectura?
+
+```{r nolee-grupo}
+nl_esc <- D %>% filter(!is.na(escolaridad)) %>% group_by(anio, escolaridad) %>%
+  summarise(p = wp(tipo_lector == "No lee", factor), .groups = "drop")
+nl <- function(a, e) f1(nl_esc$p[nl_esc$anio == a & nl_esc$escolaridad == e])
+comp <- D %>% filter(!is.na(escolaridad)) %>% group_by(anio, escolaridad) %>% summarise(w = sum(factor), .groups = "drop") %>%
+  group_by(anio) %>% mutate(p = 100 * w / sum(w)) %>% ungroup()
+cpo <- function(a, e) f1(comp$p[comp$anio == a & comp$escolaridad == e])
+nl_edad <- D %>% group_by(anio, grupo_edad) %>% summarise(p = wp(tipo_lector == "No lee", factor), .groups = "drop")
+nle <- function(a, e) f1(nl_edad$p[nl_edad$anio == a & nl_edad$grupo_edad == e])
+```
+
+La no lectura aumentó en los cuatro niveles de escolaridad (Figura \ref{fig:fig-nolee}), pero más en los intermedios: con secundaria pasó de `r nl(2019, "Secundaria")`% a `r nl(2024, "Secundaria")`% y con media superior, de `r nl(2019, "Media superior")`% a `r nl(2024, "Media superior")`%, frente a aumentos menores con primaria o menos (de `r nl(2019, "Primaria o menos")`% a `r nl(2024, "Primaria o menos")`%) y con educación superior (de `r nl(2019, "Superior")`% a `r nl(2024, "Superior")`%). Al mismo tiempo, la población representada tiene más escolaridad que en 2019 (con educación superior: de `r cpo(2019, "Superior")`% a `r cpo(2024, "Superior")`%; con primaria o menos: de `r cpo(2019, "Primaria o menos")`% a `r cpo(2024, "Primaria o menos")`%). Por lo tanto, el aumento de la no lectura no se debe a una población con menos escolaridad: ocurre dentro de cada grupo. Por edad, el mayor aumento se dio entre los 45 y 59 años (de `r nle(2019, "45-59")`% a `r nle(2024, "45-59")`%; Anexo 3).
+
+```{r fig-nolee, fig.height=1.45, fig.cap="Porcentaje ponderado de la población alfabeta que no leyó ningún material, por año y nivel de escolaridad."}
+ggplot(nl_esc, aes(anio, p, colour = escolaridad)) +
+  geom_line(linewidth = 0.7) + geom_point(size = 1.6) +
+  geom_text(data = filter(nl_esc, anio == 2024), aes(label = escolaridad), hjust = -0.15, size = 2.6, show.legend = FALSE) +
+  scale_colour_manual(values = col_esc) + scale_x_continuous(breaks = 2019:2024, limits = c(2019, 2025.3)) +
+  labs(x = NULL, y = "% que no lee", colour = NULL) + tema + theme(legend.position = "none")
+```
+
+```{r correl}
+R <- D %>% filter(tipo_lector != "No lee") %>%
+  select(Libros = n_libros, Revistas = n_revistas, `Periódicos` = n_periodicos, Minutos = minutos,
+         Internet = lee_internet, Edad = edad, Escolaridad = nivel, `Est. hogar` = ind_hogar)
+rho <- cor(R, method = "spearman", use = "pairwise.complete.obs")
+```
+
+**Relación entre las variables de comportamiento.** Entre quienes leen, las variables que usará *k-means* están poco correlacionadas (Spearman, Anexo 4): la relación más fuerte es entre libros y minutos ($\rho$ = `r round(rho["Libros", "Minutos"], 2)`), y los libros casi no se relacionan con las revistas ($\rho$ = `r round(rho["Libros", "Revistas"], 2)`) ni con los periódicos ($\rho$ = `r round(rho["Libros", "Periódicos"], 2)`). Leer en internet se asocia con menor edad ($\rho$ = `r round(rho["Internet", "Edad"], 2)`), y leer periódicos, con mayor edad ($\rho$ = `r round(rho["Periódicos", "Edad"], 2)`). Así, leer libros, revistas, periódicos o internet parecen ser hábitos distintos, no una sola escala de "leer más o menos", lo que justifica buscar perfiles con varias dimensiones.
+
+# 6. Conclusiones de la Etapa 2
+
+**Principales patrones.** En la muestra analizada la lectura está muy concentrada: quien lee libros lee una mediana de 2 al año, en sesiones de 30 minutos, y unos pocos lectores intensivos producen distribuciones con fuerte sesgo a la derecha. Cerca de 3 de cada 10 personas alfabetas no leyeron ningún material. **Diferencias entre años y grupos.** Entre 2019 y 2024 el porcentaje que lee libros se mantuvo cerca de 42%, pero la población se desplazó hacia los extremos: crecieron quienes no leen (+`r f1(ta(2024, "No lee") - ta(2019, "No lee"))` puntos) y quienes solo leen libros (+`r f1(ta(2024, "Solo libros") - ta(2019, "Solo libros"))`), y disminuyeron quienes leen varios materiales. La no lectura creció dentro de todos los niveles de escolaridad, sobre todo en secundaria y media superior. Escolaridad, edad y estímulos en el hogar se asocian con el tipo de lector, y la asociación con los libros en casa se mantiene dentro de cada nivel educativo. **Resultados que más aportan.** La Figura \ref{fig:fig-tipo-anio} anticipa que el peso de los perfiles cambió aunque los promedios publicados parezcan estables, y la baja correlación entre materiales indica que los perfiles deben ser multidimensionales. **Lo que aún no puede responderse.** No se ha probado si las diferencias son significativas, los datos no permiten afirmar causalidad y aún no se sabe cuántos perfiles hay ni si son estables. **Preguntas nuevas.** ¿Quiénes forman el grupo creciente que solo lee libros, de mayor edad y no necesariamente más escolarizado? ¿Qué libros leen y por qué motivo? ¿El salto a lo digital de 2021 cambió quién lee? **Siguiente etapa.** Se aplicará *k-means* al conjunto de entrenamiento (conteos con $\log(1 + x)$ e indicadores de material), se elegirá el número de grupos con el de validación y se evaluará con el de prueba; después se probará con $\chi^2$ y ANOVA o Kruskal–Wallis si el peso de los perfiles cambia entre años y si difieren en escolaridad, edad y antecedentes.
+
+# Referencias
+
+Delgado, P., Vargas, C., Ackerman, R., & Salmerón, L. (2018). Don't throw away your printed books: A meta-analysis on the effects of reading media on reading comprehension. *Educational Research Review, 25*, 23–38.
+
+Fernández Martínez, M. A. (2025, 30 de septiembre). *Leer menos hoy, rezagos del mañana* [Video]. YouTube. Cursos Estadística.
+
+Grupo Fórmula. (2024, 23 de abril). *En México se lee poco… y cada vez menos, explica investigador* [Video]. YouTube. [PENDIENTE: URL]
+
+Hastie, T., Tibshirani, R., & Friedman, J. (2009). *The elements of statistical learning* (2.ª ed., sección 7.2). Springer.
+
+Instituto Nacional de Estadística y Geografía. (2019–2025). *Módulo sobre Lectura (MOLEC)* [Microdatos, diccionarios y cuestionario]. https://www.inegi.org.mx/programas/molec/
+
+Instituto Nacional de Estadística y Geografía. (2024). *Módulo sobre Lectura (MOLEC) 2024* (Comunicado de prensa núm. 235/24). https://www.inegi.org.mx/contenidos/saladeprensa/boletines/2024/molec/molec2024.pdf
+
+Instituto Nacional de Estadística y Geografía. (2025). *Módulo sobre Lectura (MOLEC) 2025* (Comunicado de prensa núm. 143/25). https://www.inegi.org.mx/contenidos/saladeprensa/boletines/2025/molec/molec2025_CP.pdf
+
+Mol, S. E., & Bus, A. G. (2011). To read or not to read: A meta-analysis of print exposure from infancy to early adulthood. *Psychological Bulletin, 137*(2), 267–296. https://doi.org/10.1037/a0021890
+
+OECD. (2026). *PISA 2025 results (Volume I): Country notes: Mexico*. OECD Publishing. https://www.oecd.org/en/publications/pisa-2025-results-volume-i-country-notes_2d4ff9ea-en/mexico_85702d30-en.html
+
+Puebla Noticias en Sicom. (2025, 24 de abril). *¿Por qué cada vez leemos menos en México? Día del Libro y el reto de fomentar la lectura* [Video]. YouTube. [PENDIENTE: URL]
+
+Tecnológico de Monterrey. (s. f.). *Actividades de Pasión por la lectura*. https://tec.mx/es/pasion-por-la-lectura/actividades-de-pasion-por-la-lectura
+
+UNESCO. (2021, 25 de marzo). *100 million more children under the minimum reading proficiency level due to COVID-19: UNESCO convenes world education ministers*. https://www.unesco.org/en/articles/100-million-more-children-under-minimum-reading-proficiency-level-due-covid-19-unesco-convenes-world
+
+**Archivos de trabajo (R Markdown y base preparada):** https://github.com/vicho-btw/molec-perfiles-lectores (`Etapa2.Rmd`, que genera este reporte; `BasePreparada_MOLEC_2019_2024.csv`, y la versión de la Etapa 1 en `Etapa1.Rmd`).
+
+\newpage
+
+# Anexo 1. Antecedentes de lectura y entidad federativa
+
+La Tabla \ref{tab:anexo-antecedentes} describe por separado los ocho antecedentes que forman los índices `ind_hogar` e `ind_escuela`, y la Figura \ref{fig:anexo-entidad}, el porcentaje de no lectores en la ciudad de cada entidad federativa.
+
+```{r anexo-antecedentes}
+tibble(Antecedente = unname(items), Variable = names(items),
+       `n válidos` = sapply(names(items), function(v) fmt(sum(!is.na(D[[v]])))),
+       `% Sí (ponderado)` = f1(ant)) %>%
+  tabla("Porcentaje ponderado de personas que reportan cada antecedente de lectura en casa (infancia) y en la escuela primaria.") %>%
+  pack_rows(index = c("En casa durante la infancia (p34)" = 4, "En la escuela primaria (p36)" = 4))
+```
+
+```{r anexo-entidad, fig.height=4.3, fig.width=5.5, fig.align="center", out.width="75%", fig.cap="Porcentaje ponderado de la población alfabeta que no leyó ningún material, por entidad federativa (ciudad de 100 mil habitantes o más de cada entidad), 2019–2024. La línea discontinua marca el valor de todas las ciudades juntas."}
+ggplot(ent, aes(p, reorder(nombre, p))) +
+  geom_vline(xintercept = wp(D$tipo_lector == "No lee", D$factor), linetype = "22", colour = "grey50") +
+  geom_point(colour = azul, size = 1.8) +
+  labs(x = "% que no lee", y = NULL) + tema
+```
+
+En casa, el antecedente más común fue tener libros distintos a los de texto (`r f1(ant["inf_libros_casa"])`%) y el menos común, que lo llevaran a bibliotecas o librerías (`r f1(ant["inf_bibliotecas"])`%); solo `r f1(ant["inf_le_leian"])`% recuerda que le leían. En la primaria, los cuatro estímulos superan 55%, y el más común fue comentar lo leído (`r f1(ant["esc_comentar"])`%). Por entidad, el porcentaje de no lectores va de `r f1(ent$p[1])`% en `r ent$nombre[1]` a `r f1(ent$p[nrow(ent)])`% en `r ent$nombre[nrow(ent)]`. Como cada ciudad tiene entre `r fmt(min(ent$n))` y `r fmt(max(ent$n))` registros en los seis años, estas diferencias solo son descriptivas y tendrán que confirmarse al validar los perfiles.
+
+# Anexo 2. Medidas y distribuciones complementarias por grupo
+
+La Tabla \ref{tab:anexo-grupos} resume los libros leídos (solo lectores de libros) por escolaridad, grupo de edad y sexo. La Tabla \ref{tab:anexo-tipo-edad-sexo} muestra la distribución del tipo de lector por grupo de edad y sexo.
+
+```{r anexo-grupos}
+g_all <- bind_rows(g_esc %>% mutate(Grupo = as.character(Grupo)), g_edad %>% mutate(Grupo = as.character(Grupo)),
+                   g_sexo %>% mutate(Grupo = as.character(Grupo)))
+tabla(g_all %>% mutate(n = fmt(n), across(c(Media, DE), ~ f1(.x))),
+      "Libros leídos en 12 meses por grupo, solo lectores de libros (muestra sin ponderar).") %>%
+  pack_rows(index = c("Escolaridad" = nrow(g_esc), "Grupo de edad" = nrow(g_edad), "Sexo" = nrow(g_sexo)))
+```
+
+```{r anexo-tipo-edad-sexo}
+c_sexo <- cruce("sexo")
+bind_rows(c_edad %>% mutate(Grupo = as.character(Grupo)), c_sexo %>% mutate(Grupo = as.character(Grupo))) %>%
+  select(-w) %>% mutate(p = f1(p)) %>% pivot_wider(names_from = tipo_lector, values_from = p) %>%
+  tabla("Distribución ponderada del tipo de lector por grupo de edad y sexo (\\% por fila).", escape = TRUE) %>%
+  pack_rows(index = c("Grupo de edad" = 4, "Sexo" = 2))
+```
+
+Por sexo, la mediana es de `r ge(g_sexo, "Hombre", "Mediana")` libros en ambos grupos (media de `r f1(ge(g_sexo, "Hombre", "Media"))` en hombres y `r f1(ge(g_sexo, "Mujer", "Media"))` en mujeres), pero las mujeres leen libros en mayor proporción (`r f1(wp(D$lee_libros[D$sexo == "Mujer"], D$factor[D$sexo == "Mujer"]))`% frente a `r f1(wp(D$lee_libros[D$sexo == "Hombre"], D$factor[D$sexo == "Hombre"]))`%), mientras que los hombres leen periódicos con mucha mayor frecuencia (`r f1(wp(D$lee_periodicos[D$sexo == "Hombre"], D$factor[D$sexo == "Hombre"]))`% frente a `r f1(wp(D$lee_periodicos[D$sexo == "Mujer"], D$factor[D$sexo == "Mujer"]))`%). Por edad, el grupo de 18 a 29 años tiene la menor proporción de no lectores (`r f1(cp(c_edad, "18-29", "No lee"))`%) y la mayor de quienes combinan libros con otros materiales (`r f1(cp(c_edad, "18-29", "Libros y otros"))`%); a partir de los 60 años ocurre lo contrario (`r f1(cp(c_edad, "60+", "No lee"))`% y `r f1(cp(c_edad, "60+", "Libros y otros"))`%).
+
+# Anexo 3. No lectura por año y grupo de edad, y composición por escolaridad
+
+```{r anexo-anual}
+nl_edad %>% mutate(p = f1(p)) %>% pivot_wider(names_from = grupo_edad, values_from = p) %>% rename(`Año` = anio) %>%
+  left_join(comp %>% select(-w) %>% mutate(p = f1(p)) %>% pivot_wider(names_from = escolaridad, values_from = p) %>%
+              rename(`Año` = anio), by = "Año") %>%
+  tabla("Porcentaje ponderado que no lee ningún material por grupo de edad (columnas 2–5) y composición ponderada de la población por escolaridad (columnas 6–9), por año.") %>%
+  add_header_above(c(" " = 1, "No lee (%) por grupo de edad" = 4, "Población por escolaridad (%)" = 4))
+```
+
+La Tabla \ref{tab:anexo-anual} muestra que la no lectura aumentó sobre todo entre los 45 y 59 años (de `r nle(2019, "45-59")`% a `r nle(2024, "45-59")`%) y a partir de los 60 (de `r nle(2019, "60+")`% a `r nle(2024, "60+")`%), mientras que entre los 30 y 44 años casi no cambió (de `r nle(2019, "30-44")`% a `r nle(2024, "30-44")`%). Las columnas de escolaridad dan la composición completa que se resume en la sección 5.4.
+
+# Anexo 4. Correlaciones y diagrama de dispersión
+
+La Tabla \ref{tab:anexo-correl} presenta las correlaciones de Spearman (adecuadas para variables asimétricas y discretas) entre las variables de comportamiento y algunas de validación, calculadas para quienes leen algún material. La Figura \ref{fig:anexo-dispersion} muestra la relación entre libros leídos y minutos de lectura.
+
+```{r anexo-correl}
+tabla(round(rho, 2), "Correlaciones de Spearman entre variables de lectura y de validación (personas que leen algún material).")
+```
+
+```{r anexo-dispersion, fig.height=2.2, fig.width=4.5, fig.align="center", out.width="60%", fig.cap="Libros leídos en 12 meses frente a minutos continuos de lectura, lectores de libros (ambos ejes en escala logarítmica; puntos con desplazamiento aleatorio para evitar superposición). La línea es una curva suavizada (loess)."}
+set.seed(1)
+D %>% filter(lee_libros == 1) %>%
+  ggplot(aes(n_libros, minutos)) +
+  geom_jitter(width = 0.08, height = 0.08, alpha = 0.15, size = 0.5, colour = azul) +
+  geom_smooth(method = "loess", se = FALSE, colour = "#0b0b0b", linewidth = 0.6) +
+  scale_x_log10(breaks = c(1, 2, 5, 10, 20, 50, 100)) + scale_y_log10(breaks = c(5, 10, 30, 60, 120, 480)) +
+  labs(x = "Libros en 12 meses", y = "Minutos continuos") + tema
+```
+
+El diagrama muestra una tendencia creciente con mucha dispersión: quienes leen más libros tienden a leer en sesiones más largas, aunque para un mismo número de libros los minutos varían mucho.
