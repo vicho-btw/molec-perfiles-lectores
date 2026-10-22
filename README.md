@@ -19,6 +19,8 @@ Reto de Estadística: análisis del Módulo sobre Lectura (MOLEC) del INEGI.
 |---|---|
 | `ReporteFinal.Rmd` | Reporte final (código + texto): preparación de datos, análisis descriptivo, inferencia, arquetipos con k-means y estrategia de fomento. |
 | `ReporteFinal.pdf` | Reporte final compilado. |
+| `Presentacion.pptx` | Presentación para la exposición (PowerPoint; se puede abrir en Google Slides). |
+| `Presentacion.pdf` | Presentación en PDF. |
 | `BasePreparada_MOLEC_2019_2024.csv` | Base preparada: 11,685 personas alfabetas, 32 variables, con la partición entrenamiento/validación/prueba. La genera `ReporteFinal.Rmd`. |
 | `BasePerfiles_MOLEC_2019_2024.csv` | Base preparada con la columna `perfil` (6 arquetipos de k-means). La genera `ReporteFinal.Rmd`. |
 | `datos/` | Microdatos y diccionarios de MOLEC 2019–2025 tal como los publica INEGI. |
