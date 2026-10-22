@@ -17,21 +17,20 @@ Reto de Estadística: análisis del Módulo sobre Lectura (MOLEC) del INEGI.
 
 | Archivo | Descripción |
 |---|---|
-| `Etapa1.Rmd` | Reporte de la Etapa 1 (código + texto). |
-| `Etapa1.pdf` | Reporte compilado (borrador). |
-| `DatosEquipo_MOLEC_2019_2024.csv` | Base de trabajo de la Etapa 1: 10,252 registros, 25 variables. La genera `Etapa1.Rmd`. |
-| `Etapa2.Rmd` | Reporte acumulado de la Etapa 2: el de la Etapa 1 (revisión bibliográfica y objetivo) más la preparación de datos y el análisis descriptivo (código + texto). |
-| `Etapa2.pdf` | Reporte compilado de la Etapa 2. |
-| `BasePreparada_MOLEC_2019_2024.csv` | Base preparada en la Etapa 2: 11,685 personas alfabetas, 32 variables, con la partición entrenamiento/validación/prueba. La genera `Etapa2.Rmd`. |
+| `ReporteFinal.Rmd` | Reporte final (código + texto): preparación de datos, análisis descriptivo, inferencia, arquetipos con k-means y estrategia de fomento. |
+| `ReporteFinal.pdf` | Reporte final compilado. |
+| `BasePreparada_MOLEC_2019_2024.csv` | Base preparada: 11,685 personas alfabetas, 32 variables, con la partición entrenamiento/validación/prueba. La genera `ReporteFinal.Rmd`. |
+| `BasePerfiles_MOLEC_2019_2024.csv` | Base preparada con la columna `perfil` (6 arquetipos de k-means). La genera `ReporteFinal.Rmd`. |
 | `datos/` | Microdatos y diccionarios de MOLEC 2019–2025 tal como los publica INEGI. |
-| `plantilla_word.docx` | Estilos para la salida en Word (interlineado 1.5). |
-| `img/logo_tec.png` | Logo para la portada del PDF (curso y profesor van en el YAML de `Etapa1.Rmd`). |
+| `img/logo_tec.png` | Logo para la portada del PDF. |
+
+Las versiones entregadas de cada etapa están en el historial de git.
 
 ## Cómo compilar
 
 1. Abrir `situacionproblema.Rproj` en RStudio.
-2. Instalar paquetes si hace falta: `install.packages(c("dplyr", "tidyr", "ggplot2", "knitr", "readxl", "rmarkdown", "kableExtra", "e1071", "gridExtra"))`.
-3. Abrir `Etapa1.Rmd` o `Etapa2.Rmd` → **Knit → Knit to PDF** (requiere LaTeX; con `tinytex::install_tinytex()` basta).
+2. Instalar paquetes si hace falta: `install.packages(c("dplyr", "tidyr", "ggplot2", "knitr", "readxl", "rmarkdown", "kableExtra", "e1071", "gridExtra", "cluster", "car"))`.
+3. Abrir `ReporteFinal.Rmd` → **Knit → Knit to PDF** (requiere LaTeX; con `tinytex::install_tinytex()` basta).
 
 ## Fuente de los datos
 
