@@ -8,14 +8,14 @@ author:
 - "Jia-Hong André Kuo Ko – A01179116"
 - "Mauricio Ruiz Junco – A01783698"
 - "Mauricio Horcasitas Farah – A00843564"
-date: "21/10/2026"
+date: "24/10/2026"
 curso: "Modelación estadística para la toma de decisiones (Gpo 202)"
 profesor: "Dra. Blanca R. Ruiz Hernández, Dra. María Guadalupe Tobías Lara"
 output: pdf_document
 fontsize: 11pt
-geometry: margin=2.5cm
+geometry: margin=2cm
 header-includes:
-  - \linespread{1.1}
+  - \linespread{1}
   - \renewcommand{\tablename}{Tabla}
   - \renewcommand{\figurename}{Figura}
   - \usepackage{etoolbox}
@@ -211,9 +211,17 @@ pt <- function(v) setNames(part[[v]], part$particion)
 
 \newpage
 
-*Nota sobre el uso de inteligencia artificial.* En la elaboración de este reporte se utilizó Claude (Anthropic) como asistente para la redacción del reporte y algunos procedimientos en código. Se asegura que el análisis y trabajo es trabajo original de los 4 autores.
+# Resumen
 
-# 1. Introducción
+**Problemática.** Entre 2015 y 2024 la población urbana alfabeta de México que leyó algún material bajó de 84.2% a 69.6% (INEGI, 2024), pero los promedios no dicen quién dejó de leer ni qué lee. Este trabajo pregunta cómo cambió el comportamiento lector entre 2019 y 2024, qué arquetipos de lector pueden identificarse y qué estrategias de fomento se desprenden de ellos.
+
+**Método.** Se integraron los microdatos del Módulo sobre Lectura (MOLEC) del INEGI de 2019 a 2024: `r fmt(nrow(D))` personas alfabetas de 18 años y más en ciudades de 100 mil habitantes o más. Los porcentajes se ponderaron con el factor de expansión y su incertidumbre se ajustó con el tamaño efectivo de muestra. Con un nivel de significancia de 0.04 se construyeron intervalos de confianza para proporciones, medias y el cociente de varianzas, y seis pruebas de hipótesis: tres de diferencia de proporciones, un ANOVA (confirmado con Welch), una prueba de Kruskal–Wallis y una $\chi^2$ de independencia con corrección de Rao–Scott. Como exploración complementaria se identificaron arquetipos de lector con *k-means*, con conjuntos de entrenamiento, validación y prueba.
+
+**Resultados.** Con 96% de confianza, la no lectura aumentó entre 1.8 y 8.6 puntos (de 25.2% a 30.4%) y la lectura de periódicos cayó entre 12.9 y 19.4 puntos, mientras que no hay evidencia de cambio en la lectura de libros ni de internet. El aumento de la no lectura es claro entre personas con secundaria y media superior. Entre los lectores de libros, la mediana pasa de 1 libro al año con primaria o menos a 3 con educación superior, y lee libros 53.2% de quienes tuvieron libros en casa durante la infancia, frente a 26.0% de quienes no los tuvieron. *K-means* propone seis arquetipos (no lectores y lectores de periódicos, de internet, de impresos, de libros digitales y de historietas) que la edad y la escolaridad explican solo en parte.
+
+**Conclusiones.** El fomento de la lectura que motivó la creación de MOLEC no ha frenado la no lectura. Se propone dirigir las acciones según qué y cómo lee cada arquetipo, y no solo según la demografía, con dos líneas transversales: llevar libros a los hogares con niños y medir cada año el peso de cada arquetipo. Al tratarse de datos observacionales, los resultados son asociaciones, no causas.
+
+# 1. Introducción y justificación
 
 Leer es la base de otras habilidades. En un metaanálisis de 99 estudios, Mol y Bus (2011) encontraron una relación de moderada a fuerte entre la lectura en el tiempo libre y la comprensión lectora, desde preescolar hasta la universidad: quien comprende mejor lee más y, al leer más, comprende mejor, una "espiral" que también funciona en sentido contrario. Fernández Martínez (2025) vincula la baja comprensión lectora con una mayor vulnerabilidad ante la desinformación y con el abandono escolar, por lo que medir la lectura es de interés público: sin datos no se puede saber si las políticas de fomento funcionan ni a quién dirigirlas.
 
@@ -221,7 +229,7 @@ El panorama es preocupante. La pandemia elevó de 483 a 584 millones el número 
 
 Medir la lectura también tiene límites. MOLEC se basa en el autorreporte, solo representó a la población urbana hasta 2024 y en 2025 cambió su cuestionario, lo que "genera una nueva serie de información" (INEGI, 2025); leer en pantalla tampoco equivale a leer en papel (Delgado et al., 2018), y al tratarse de datos observacionales, correlación no implica causalidad. MOLEC ha cumplido su objetivo de generar información, pero la caída sostenida indica que el fomento no ha revertido la tendencia. Para que iniciativas como Pasión por la lectura del Tecnológico de Monterrey (s. f.) lleguen a quien más las necesita, hace falta saber qué tipos de lectores y no lectores existen y cómo están cambiando.
 
-# 2. Objetivo de investigación
+## 1.1 Pregunta de investigación
 
 **¿Cómo cambió el comportamiento lector de la población urbana alfabeta de 18 años y más entre 2019 y 2024, según MOLEC, qué arquetipos de lector pueden identificarse y qué estrategias de fomento se desprenden de ellos?**
 
@@ -250,9 +258,11 @@ tend <- bind_rows(lapply(names(bases), function(a) {
 tv <- function(v, a) f1(tend[[v]][tend$anio == a])
 ```
 
-**Justificación.** Los indicadores que publica INEGI son promedios, y un promedio estable puede ocultar cambios en la composición de la población (Fernández Martínez, 2025). Entre 2019 y 2024 el porcentaje ponderado que leyó libros pasó de `r tv("Libros", 2019)`% a `r tv("Libros", 2024)`%, prácticamente sin cambio, pero la lectura de revistas bajó de `r tv("Revistas", 2019)`% a `r tv("Revistas", 2024)`%, la de periódicos de `r tv("Periódicos", 2019)`% a `r tv("Periódicos", 2024)`% y la no lectura subió de `r tv("Ningún material", 2019)`% a `r tv("Ningún material", 2024)`% (Figura \ref{fig:fig-tendencia}). Identificar perfiles permite dirigir el fomento a públicos concretos y relacionarlos con las dos áreas de oportunidad que señalan las fuentes: el hogar y la escuela.
+## 1.2 Justificación
 
-```{r fig-tendencia, fig.height=1.9, fig.cap="Porcentaje ponderado de la población alfabeta de 18 años y más que leyó cada material, MOLEC 2019–2024."}
+Los indicadores que publica INEGI son promedios, y un promedio estable puede ocultar cambios en la composición de la población (Fernández Martínez, 2025). Entre 2019 y 2024 el porcentaje ponderado que leyó libros pasó de `r tv("Libros", 2019)`% a `r tv("Libros", 2024)`%, prácticamente sin cambio, pero la lectura de revistas bajó de `r tv("Revistas", 2019)`% a `r tv("Revistas", 2024)`%, la de periódicos de `r tv("Periódicos", 2019)`% a `r tv("Periódicos", 2024)`% y la no lectura subió de `r tv("Ningún material", 2019)`% a `r tv("Ningún material", 2024)`% (Figura \ref{fig:fig-tendencia}). Identificar perfiles permite dirigir el fomento a públicos concretos y relacionarlos con las dos áreas de oportunidad que señalan las fuentes: el hogar y la escuela.
+
+```{r fig-tendencia, fig.height=1.65, fig.cap="Porcentaje ponderado de la población alfabeta de 18 años y más que leyó cada material, MOLEC 2019–2024."}
 # Color de cada material
 col_mat <- c(Libros = "#2a78d6", Internet = "#eb6834", Revistas = "#1baf7a", `Periódicos` = "#eda100",
              Historietas = "#e87ba4", `Ningún material` = "#a3a29b")
@@ -265,34 +275,200 @@ tend %>% pivot_longer(-anio, names_to = "Material", values_to = "pct") %>%
   labs(x = NULL, y = "% de la población", colour = NULL) + tema + theme(legend.position = "right")
 ```
 
-# 3. Datos y preparación
+# 2. Metodología
+
+## 2.1 Fuente de datos, población y muestra
+
+Los datos provienen del Módulo sobre Lectura (MOLEC) del INEGI (2019–2025), que hasta 2024 se levantó cada febrero en 32 ciudades de 100 mil habitantes o más, una por entidad federativa (INEGI, 2025). En cada vivienda seleccionada se entrevista a una sola persona de 18 años o más. El muestreo es probabilístico, estratificado y por conglomerados, y cada persona tiene un factor de expansión que indica a cuántas personas de la población representa. La población objetivo es la población urbana alfabeta de 18 años y más.
 
 **Estructura.** Se integraron los seis levantamientos de MOLEC 2019–2024: `r fmt(n_bruto)` registros con `r n_cols_bruto` columnas por año, en los que cada registro es **una persona** de 18 años o más seleccionada en una vivienda. Las variables seleccionadas tienen la misma redacción y codificación en los seis años (1 Sí, 2 No, 3 No recuerda, 0 = blanco por pase); solo se homologaron algunos nombres de columna (por ejemplo, `n_ren_ele` y `P36_1` en 2019). Se excluye 2025 porque su cuestionario se rediseñó: incluye a `r fmt(sum(M25$edad < 18, na.rm = TRUE))` personas de 12 a 17 años, amplía la definición de "libro" y no trae factor de expansión. Como verificación, los porcentajes ponderados reproducen las cifras oficiales de 2024. Se analiza la población **alfabeta** (`p1 = 1`), la única a la que se aplica el módulo.
 
+## 2.2 Cómo se aborda la pregunta
+
+La pregunta de investigación se descompone en tres preguntas secundarias: (1) ¿cambió entre 2019 y 2024 la proporción de personas que no leen, que leen libros, periódicos o internet, también dentro de cada nivel de escolaridad?; (2) ¿a quién conviene dirigir el fomento, es decir, la cantidad de libros que se leen y la lectura de libros dependen de la escolaridad y de haber tenido libros en casa?, y (3) ¿qué arquetipos de lector pueden identificarse a partir del comportamiento lector? Las dos primeras se responden con inferencia estadística sobre grupos definidos de antemano y la tercera, con *k-means* como exploración.
+
+## 2.3 Variables y limpieza de datos
+
 **Variables.** Se seleccionaron 25 variables de MOLEC: las de **agrupamiento** describen el comportamiento lector (si lee cada material, cuántos libros, revistas y periódicos, minutos por sesión, si acostumbra leer y si lee libros digitales) y son las que usa *k-means*; las de **validación** (edad, escolaridad, sexo, entidad y ocho antecedentes de lectura en la infancia y la primaria) no entran al algoritmo; sirven para caracterizar a los arquetipos y para definir los grupos de las pruebas inferenciales. A ellas se agregaron siete atributos derivados (tipo de lector de INEGI, número de materiales, grupo de edad, escolaridad agrupada, índices de estímulos en el hogar y en la primaria, y la partición). El **Anexo A** describe las `r ncol(D)` variables (descripción, tipo, valores y faltantes).
 
-**Calidad.** Las únicas celdas vacías son `r n_na_orig` valores de `mat_lec` en 2019, `r if (na_orig_analf) "todos de personas que no saben leer" else "que se revisaron caso por caso"`. Los pases de pregunta se codifican como 0, así que cada código especial se revisó en el diccionario antes de decidir qué hacer con él (Tabla \ref{tab:tabla-calidad}). No hay valores fuera del rango del diccionario ni registros duplicados (`r n_dup_id` claves de persona repetidas y `r n_dup_resp` filas idénticas).
-
-```{r tabla-calidad}
-# Códigos especiales, su significado y la decisión tomada
-calidad <- tribble(
-  ~`Código encontrado`, ~`Significado (diccionario)`, ~`Decisión`, ~Registros,
-  "p1 = 2", "No sabe leer: el resto del módulo no se aplica", "Se excluye de la población", fmt(q$analf),
-  "nivel = 99", "Escolaridad no especificada", "NA; se conserva el registro", fmt(q$nivel99),
-  "p4, p10, p16 = 0", "Pase: no leyó ese material", "Cero válido (0 libros, revistas…)", paste(fmt(q$p4_0), fmt(q$p10_0), fmt(q$p16_0), sep = " / "),
-  "p26 = 0", "Pase: no lee ningún material", "NA (no aplica) en minutos", fmt(q$p26_0),
-  "p8_1 = 0", "Pase: no leyó libros", "NA (no aplica) en lib_digital", fmt(q$p8_0),
-  "p34_*, p36_* = 3", "No recuerda", "NA", paste(q$nr, collapse = "–"),
-  "p36_* = 0", "Pase: no asistió a la primaria (p35 = 2)", "NA (no aplica)", fmt(q$p36_0),
-  "p4, p10 = 99", "Dentro del rango 01–99 de su año", "Valor válido, atípico; se conserva", fmt(q$n99))
-tabla(calidad, "Códigos especiales revisados en la población alfabeta y decisión tomada.")
-```
+**Calidad.** Las únicas celdas vacías son `r n_na_orig` valores de `mat_lec` en 2019, `r if (na_orig_analf) "todos de personas que no saben leer" else "que se revisaron caso por caso"`. Los pases de pregunta se codifican como 0, así que cada código especial se revisó en el diccionario antes de decidir qué hacer con él (Tabla \ref{tab:tabla-calidad}, Anexo A). No hay valores fuera del rango del diccionario ni registros duplicados (`r n_dup_id` claves de persona repetidas y `r n_dup_resp` filas idénticas).
 
 Respecto a la Etapa 1 se corrigieron tres decisiones: el 99 de los conteos se conserva, los pases de `p26` y `p8_1` se tratan como "no aplica" en lugar de cero, y ya no se eliminan los registros con algún "No recuerda". Este último cambio es el más importante: `na.omit()` descartaba `r fmt(e1$n[2])` personas (`r f1(100 * e1$n[2] / sum(e1$n))`%), de mayor edad (`r f1(e1$edad[2])` frente a `r f1(e1$edad[1])` años) y menos lectoras (`r f1(e1$lectores[2])`% frente a `r f1(e1$lectores[1])`%), lo que sesgaba la base. Ahora cada faltante se excluye solo del análisis de su variable, y la base preparada (`BasePreparada_MOLEC_2019_2024.csv`) tiene `r fmt(nrow(D))` registros.
 
-**Entrenamiento, validación y prueba.** La base se dividió al azar en tres subconjuntos ajenos (70/15/15 %, estratificados por año). Con el de **entrenamiento** (`r fmt(pt("n")["entrenamiento"])` registros) se *ajusta* el modelo: *k-means* calcula ahí los centroides y la estandarización. El de **validación** (`r fmt(pt("n")["validacion"])`) no interviene en el ajuste; sirve para *elegir* entre alternativas, como el número de grupos. El de **prueba** (`r fmt(pt("n")["prueba"])`) se reserva y se usa una sola vez para evaluar el modelo elegido con datos que nunca vio; si se usara para decidir, la evaluación dejaría de ser honesta (Hastie et al., 2009). Esta división es distinta de la validación externa del objetivo 2, que compara los perfiles con variables no usadas para formarlos. Los tres subconjuntos son semejantes (no lectores: `r f1(pt("nolee")["entrenamiento"])`%, `r f1(pt("nolee")["validacion"])`% y `r f1(pt("nolee")["prueba"])`%; edad media: `r f1(pt("edad")["entrenamiento"])`, `r f1(pt("edad")["validacion"])` y `r f1(pt("edad")["prueba"])` años).
+## 2.4 Técnicas estadísticas y nivel de significancia
 
-# 4. Análisis descriptivo
+```{r inferencia}
+# ---- Tamaño efectivo por año (efecto de diseño de Kish por la ponderación) ----
+efec <- D %>% group_by(anio) %>% summarise(n = n(), neff = sum(factor)^2 / sum(factor^2)) %>% mutate(deff = n / neff)
+deff_tot <- nrow(D) / (sum(D$factor)^2 / sum(D$factor^2))
+z_ic <- qnorm(1 - alfa / 2)
+# Indicadores definidos antes de las pruebas
+D$no_lee <- as.integer(D$tipo_lector == "No lee")
+indic <- c(no_lee = "No leyó ningún material", lee_libros = "Leyó libros", lee_periodicos = "Leyó periódicos", lee_internet = "Lee internet")
+# Proporción ponderada y tamaño efectivo de un grupo
+prop_w <- function(d, v) d %>% summarise(p = sum(.data[[v]] * factor) / sum(factor), neff = sum(factor)^2 / sum(factor^2), .groups = "drop")
+# IC de una proporción (2019 y 2024) con el tamaño efectivo
+icp <- bind_rows(lapply(names(indic), function(v) D %>% filter(anio %in% c(2019, 2024)) %>% group_by(anio) %>%
+  prop_w(v) %>% mutate(var = v))) %>%
+  mutate(se = sqrt(p * (1 - p) / neff), li = p - z_ic * se, ls = p + z_ic * se, np = neff * p, nq = neff * (1 - p))
+# IC de la diferencia 2024 - 2019 y estadístico Z con proporción combinada
+dif_ic <- function(t) t %>% pivot_wider(names_from = anio, values_from = c(p, neff)) %>%
+  mutate(d = p_2024 - p_2019, se = sqrt(p_2019 * (1 - p_2019) / neff_2019 + p_2024 * (1 - p_2024) / neff_2024),
+         li = d - z_ic * se, ls = d + z_ic * se,
+         pc = (p_2019 * neff_2019 + p_2024 * neff_2024) / (neff_2019 + neff_2024),
+         z = d / sqrt(pc * (1 - pc) * (1 / neff_2019 + 1 / neff_2024)))
+dif <- dif_ic(icp %>% select(var, anio, p, neff))
+dv <- function(v, col) sapply(v, function(x) 100 * dif[[col]][dif$var == x])
+iv <- function(v, a, col) sapply(v, function(x) 100 * icp[[col]][icp$var == x & icp$anio == a])
+# No lectura 2019 vs 2024 dentro de cada nivel de escolaridad
+esc_dif <- dif_ic(D %>% filter(anio %in% c(2019, 2024), !is.na(escolaridad)) %>% group_by(escolaridad, anio) %>% prop_w("no_lee"))
+ed_v <- function(e, col) 100 * esc_dif[[col]][esc_dif$escolaridad == e]
+# Pruebas Z: no lectura (cola derecha), libros (dos colas), periódicos (cola izquierda)
+z_der <- qnorm(1 - alfa); z_dos <- qnorm(1 - alfa / 2)
+zt <- function(v) dif$z[dif$var == v]
+p_nl <- 1 - pnorm(zt("no_lee")); p_lib <- 2 * (1 - pnorm(abs(zt("lee_libros")))); p_per <- pnorm(zt("lee_periodicos"))
+
+# ---- Libros leídos por escolaridad (lectores de libros, log(1 + x)) ----
+B <- D %>% filter(lee_libros == 1, !is.na(escolaridad)) %>% mutate(ll = log1p(n_libros))
+lb <- B %>% group_by(escolaridad) %>% summarise(n = n(), m = mean(ll), de = sd(ll), v = var(ll), med = median(n_libros),
+                                                sesgo = skewness(ll), sw = shapiro.test(ll)$p.value) %>%
+  mutate(t = qt(1 - alfa / 2, n - 1), li = m - t * de / sqrt(n), ls = m + t * de / sqrt(n))
+lbv <- function(e, col) lb[[col]][lb$escolaridad == e]
+# IC del cociente de varianzas (nivel con mayor y menor varianza)
+i_max <- which.max(lb$v); i_min <- which.min(lb$v)
+F_v <- lb$v[i_max] / lb$v[i_min]; gl1 <- lb$n[i_max] - 1; gl2 <- lb$n[i_min] - 1
+ic_F <- c(F_v / qf(1 - alfa / 2, gl1, gl2), F_v / qf(alfa / 2, gl1, gl2))
+# ANOVA, Welch, Levene y Kruskal-Wallis (medianas)
+an_l <- aov(ll ~ escolaridad, data = B); s_an <- summary(an_l)[[1]]
+F_an <- s_an$`F value`[1]; gl_an <- s_an$Df; p_an <- s_an$`Pr(>F)`[1]; crit_an <- qf(1 - alfa, gl_an[1], gl_an[2])
+res_an <- residuals(an_l)
+lev <- leveneTest(ll ~ factor(escolaridad, ordered = FALSE), data = B); bart <- bartlett.test(ll ~ escolaridad, data = B)
+welch <- oneway.test(ll ~ escolaridad, data = B)
+kw <- kruskal.test(n_libros ~ escolaridad, data = B); crit_kw <- qchisq(1 - alfa, kw$parameter)
+
+# ---- Leer libros y libros en casa en la infancia: chi cuadrada con corrección de Rao-Scott ----
+C2 <- D %>% filter(!is.na(inf_libros_casa))
+ch_casa <- chisq.test(table(C2$lee_libros, C2$inf_libros_casa), correct = FALSE)
+chi_rs <- unname(ch_casa$statistic) / deff_tot; crit_casa <- qchisq(1 - alfa, 1); p_rs <- 1 - pchisq(chi_rs, 1)
+casa_p <- C2 %>% group_by(inf_libros_casa) %>% summarise(p = wp(lee_libros, factor))
+```
+
+Siguiendo la retroalimentación recibida, la inferencia se hace sobre **indicadores y grupos definidos antes de las pruebas**, y no sobre los grupos de *k-means*. Como los grupos de *k-means* se construyen buscando patrones en los mismos datos, probar después diferencias entre ellos puede producir significancias engañosas; por eso el agrupamiento se reporta aparte como exploración (secciones 2.5 y 3.4). La Tabla \ref{tab:tabla-tecnicas} relaciona cada pregunta con su técnica. Todas las pruebas usan $\alpha$ = `r alfa` y todos los intervalos, una confianza de `r 100 * (1 - alfa)`%.
+
+```{r tabla-tecnicas}
+# Pregunta y técnica que la responde
+tribble(
+  ~`Pregunta`, ~`Población y grupos`, ~`Técnica`, ~`Distribución`,
+  "¿Qué proporción no leyó, leyó libros, periódicos o internet en 2019 y 2024?", "Población alfabeta, cada año", "IC de una proporción", "Normal (Z)",
+  "¿Cuánto cambió cada proporción?", "2019 frente a 2024", "IC de la diferencia de proporciones", "Normal (Z)",
+  "¿Aumentó la no lectura? ¿Cambió la lectura de libros? ¿Bajó la de periódicos?", "2019 frente a 2024", "Pruebas de diferencia de proporciones", "Normal (Z)",
+  "¿Aumentó la no lectura dentro de cada nivel de escolaridad?", "Cuatro niveles de escolaridad", "IC de la diferencia de proporciones", "Normal (Z)",
+  "¿Cuántos libros leen los lectores de cada nivel?", "Lectores de libros, por escolaridad", "IC de la media; IC del cociente de varianzas", "t; F",
+  "¿Difiere la cantidad de libros entre niveles?", "Lectores de libros, por escolaridad", "ANOVA (y Welch); Kruskal–Wallis", "F; chi cuadrada",
+  "¿Se asocia leer libros con haber tenido libros en casa?", "Población alfabeta", "Prueba de independencia (Rao–Scott)", "Chi cuadrada") %>%
+  tabla("Preguntas inferenciales, población, técnica y distribución muestral.") %>%
+  column_spec(1, width = "5.6cm") %>% column_spec(2, width = "3.6cm") %>% column_spec(3, width = "3.8cm")
+```
+
+**Diseño muestral.** MOLEC tiene un diseño estratificado y por conglomerados, y el factor de expansión pondera a cada persona. Las proporciones se estiman con el factor de expansión y, para su incertidumbre, se usa el **tamaño efectivo de muestra** de Kish (1965), $n_{ef} = (\sum w)^2/\sum w^2$, que reduce el tamaño de la muestra según la variabilidad de los pesos: el efecto de diseño por ponderación va de `r f2(min(efec$deff))` a `r f2(max(efec$deff))` según el año, es decir, cada año la muestra "vale" como una de unas `r fmt(round(min(efec$neff)))` a `r fmt(round(max(efec$neff)))` personas. En la prueba $\chi^2$ el estadístico se divide entre el efecto de diseño (corrección de primer orden de Rao y Scott, 1984). Esta corrección no incorpora los conglomerados, así que los intervalos siguen siendo una aproximación algo optimista. Cada año es una muestra independiente y se selecciona una sola persona por vivienda.
+
+**Aproximación normal.** Una proporción muestral es el promedio de una variable que vale 1 o 0, así que, por el teorema del límite central, su distribución se aproxima a la normal cuando la muestra es grande; la regla usual es que $n\hat p$ y $n(1-\hat p)$ sean al menos 5. Con el tamaño efectivo, el menor de esos valores en los intervalos por año es `r f1(min(c(icp$np, icp$nq)))` y, dentro de los niveles de escolaridad, `r f1(min(c(esc_dif$neff_2019 * esc_dif$p_2019, esc_dif$neff_2024 * esc_dif$p_2024)))`, así que la aproximación es válida (Anexo C).
+
+**Por qué estas pruebas.** Cada prueba responde una parte de la pregunta de investigación:
+
+* *Pruebas 1 a 3 (diferencia de proporciones, distribución normal).* Responden cómo cambió la lectura. Cada indicador es de sí o no y 2019 y 2024 son muestras independientes, así que se comparan dos proporciones. La no lectura (prueba 1) es el indicador central que MOLEC se creó para medir; la lectura de libros (prueba 2) indica si el cambio ocurre en el núcleo de lectores de libros, y la de periódicos (prueba 3) confirma el cambio de formato. Las pruebas 1 y 3 son de una cola porque el análisis descriptivo y la literatura anticipaban una dirección (más no lectura, menos periódicos); la 2 es de dos colas porque no había una dirección esperada.
+* *Pruebas 4 y 5 (ANOVA y Kruskal–Wallis).* Responden a quién dirigir el fomento: si, entre quienes leen libros, la cantidad depende de la escolaridad. El ANOVA compara las medias de $\log(1 + \text{libros})$ de los cuatro niveles en una sola prueba, sin inflar el error como lo harían varias pruebas *t*. Su supuesto de normalidad se refiere a las medias de cada grupo: con `r fmt(min(lb$n))` a `r fmt(max(lb$n))` lectores por nivel, el teorema del límite central las hace aproximadamente normales, aunque la prueba de Shapiro–Wilk, muy sensible con muestras de este tamaño, rechace la normalidad de los datos. Como las varianzas no son iguales, el resultado se confirma con el ANOVA de Welch, y la prueba de Kruskal–Wallis, que no requiere normalidad y compara medianas, verifica que la conclusión no dependa de ese supuesto.
+* *Prueba 6 (independencia, $\chi^2$ con Rao–Scott).* Sostiene la línea del hogar de la estrategia: relaciona dos variables categóricas, leer libros y haber tenido libros en casa durante la infancia, y la corrección de Rao–Scott ajusta el estadístico por el diseño muestral.
+
+## 2.5 Arquetipos de lector con *k-means*
+
+```{r kmeans}
+# ---- Perfiles con k-means ----
+# Variables de agrupamiento: conteos en log(1 + x) y variables binarias (quien no lee: 0 minutos)
+Xk <- D %>% transmute(libros = log1p(n_libros), revistas = log1p(n_revistas), periodicos = log1p(n_periodicos),
+                      minutos = log1p(coalesce(minutos, 0)), internet = lee_internet, historietas = lee_historietas,
+                      digital = coalesce(lib_digital, 0L), acostumbra)
+# Subconjuntos de la partición
+s_ent <- D$particion == "entrenamiento"; s_val <- D$particion == "validacion"; s_pru <- D$particion == "prueba"
+# Estandarización con la media y la desviación estándar del entrenamiento
+Zk <- scale(Xk, center = colMeans(Xk[s_ent, ]), scale = apply(Xk[s_ent, ], 2, sd))
+# Asigna cada persona al centroide más cercano
+asignar <- function(Zs, C) apply(Zs, 1, function(z) which.min(colSums((t(C) - z)^2)))
+# Índice de Rand ajustado: coincidencia entre dos agrupamientos (1 = idénticos, 0 = al azar)
+ari <- function(a, b) {
+  t <- table(a, b); s1 <- sum(choose(t, 2)); a1 <- sum(choose(rowSums(t), 2)); b1 <- sum(choose(colSums(t), 2))
+  e <- a1 * b1 / choose(sum(t), 2); (s1 - e) / ((a1 + b1) / 2 - e)
+}
+# Prueba k = 2 a 8: suma de cuadrados (entrenamiento), silueta y estabilidad (validación)
+set.seed(2026)
+sel_k <- bind_rows(lapply(2:8, function(k) {
+  km <- kmeans(Zk[s_ent, ], centers = k, nstart = 25, iter.max = 100)
+  cv <- asignar(Zk[s_val, ], km$centers)
+  kv <- kmeans(Zk[s_val, ], centers = k, nstart = 25, iter.max = 100)
+  tibble(k = k, wss = km$tot.withinss, silueta = mean(silhouette(cv, dist(Zk[s_val, ]))[, 3]), ari = ari(cv, kv$cluster))
+}))
+# Regla: el mayor k con estabilidad de al menos 0.90
+k_sel <- max(sel_k$k[sel_k$ari >= 0.90])
+# Modelo final con el entrenamiento
+set.seed(2026)
+km <- kmeans(Zk[s_ent, ], centers = k_sel, nstart = 50, iter.max = 100)
+D$cl <- asignar(Zk, km$centers)
+# Evaluación única con el conjunto de prueba
+set.seed(2026)
+k_pru <- kmeans(Zk[s_pru, ], centers = k_sel, nstart = 50, iter.max = 100)
+sil_pru <- mean(silhouette(D$cl[s_pru], dist(Zk[s_pru, ]))[, 3])
+ari_pru <- ari(D$cl[s_pru], k_pru$cluster)
+# Nombre de cada perfil según su rasgo distintivo
+rasgo <- D %>% group_by(cl) %>% summarise(nmat = mean(n_materiales), his = mean(lee_historietas),
+                                          dig = mean(coalesce(lib_digital, 0L)), per = mean(lee_periodicos), int = mean(lee_internet))
+nom <- character(k_sel); resto <- rasgo$cl
+elegir <- function(v, f) { r <- resto[f(rasgo[[v]][match(resto, rasgo$cl)])]; resto <<- setdiff(resto, r); r }
+nom[elegir("nmat", which.min)] <- "No lectores"; nom[elegir("his", which.max)] <- "Lectores de historietas"
+nom[elegir("dig", which.max)] <- "Lectores de libros digitales"; nom[elegir("per", which.max)] <- "Lectores de periódicos"
+nom[elegir("int", which.max)] <- "Lectores de internet"; nom[resto] <- "Lectores de impresos"
+perfiles <- c("No lectores", "Lectores de periódicos", "Lectores de internet", "Lectores de impresos",
+              "Lectores de libros digitales", "Lectores de historietas")
+cortos <- c("No lectores", "Periódicos", "Internet", "Impresos", "Libros digitales", "Historietas")
+D$perfil <- factor(nom[D$cl], perfiles)
+# Guarda la base con el perfil de cada persona
+write.csv(D %>% select(-cl, -no_lee), "BasePerfiles_MOLEC_2019_2024.csv", row.names = FALSE, fileEncoding = "UTF-8")
+```
+
+```{r arquetipos}
+# Peso ponderado de cada arquetipo por año (descriptivo)
+col_arq <- setNames(c("#a3a29b", "#4a3aa7", "#eb6834", "#1baf7a", "#2a78d6", "#e87ba4"), cortos)
+arq_anio <- D %>% group_by(anio, perfil) %>% summarise(w = sum(factor), .groups = "drop") %>%
+  group_by(anio) %>% mutate(p = 100 * w / sum(w)) %>% ungroup() %>% mutate(corto = factor(cortos[as.integer(perfil)], cortos))
+aa <- function(a, pf) arq_anio$p[arq_anio$anio == a & arq_anio$perfil == pf]
+# ¿Cuánto explican la edad y la escolaridad? V de Cramér y acierto de la regla "arquetipo más común del grupo"
+v_cramer <- function(x, y) { t <- table(x, y); unname(sqrt(chisq.test(t)$statistic / (sum(t) * (min(dim(t)) - 1)))) }
+v_edad <- v_cramer(D$perfil, D$grupo_edad); v_esc <- v_cramer(D$perfil, D$escolaridad)
+Dd <- D %>% filter(!is.na(escolaridad))
+celdas <- Dd %>% count(grupo_edad, escolaridad, perfil) %>% group_by(grupo_edad, escolaridad) %>% mutate(p = n / sum(n))
+acierto <- sum(celdas %>% slice_max(n, n = 1, with_ties = FALSE) %>% pull(n)) / nrow(Dd)
+base_acierto <- max(table(Dd$perfil)) / nrow(Dd)
+max_celda <- max(celdas %>% group_by(grupo_edad, escolaridad) %>% summarise(m = max(p), .groups = "drop") %>% pull(m))
+# Composición de arquetipos por grupo de edad y escolaridad (ponderada)
+arq_dem <- bind_rows(
+  D %>% group_by(Grupo = as.character(grupo_edad), perfil) %>% summarise(w = sum(factor), .groups = "drop") %>% mutate(Panel = "Grupo de edad"),
+  Dd %>% group_by(Grupo = as.character(escolaridad), perfil) %>% summarise(w = sum(factor), .groups = "drop") %>% mutate(Panel = "Escolaridad")) %>%
+  group_by(Panel, Grupo) %>% mutate(p = 100 * w / sum(w)) %>% ungroup() %>%
+  mutate(corto = factor(cortos[as.integer(perfil)], cortos),
+         Grupo = factor(Grupo, rev(c("18-29", "30-44", "45-59", "60+", levels(D$escolaridad)))))
+ad <- function(g, pf) arq_dem$p[arq_dem$Grupo == g & arq_dem$perfil == pf]
+```
+
+**Entrenamiento, validación y prueba.** La base se dividió al azar en tres subconjuntos ajenos (70/15/15 %, estratificados por año). Con el de **entrenamiento** (`r fmt(pt("n")["entrenamiento"])` registros) se *ajusta* el modelo: *k-means* calcula ahí los centroides y la estandarización. El de **validación** (`r fmt(pt("n")["validacion"])`) no interviene en el ajuste; sirve para *elegir* entre alternativas, como el número de grupos. El de **prueba** (`r fmt(pt("n")["prueba"])`) se reserva y se usa una sola vez para evaluar el modelo elegido con datos que nunca vio; si se usara para decidir, la evaluación dejaría de ser honesta (Hastie et al., 2009). Esta división es distinta de la caracterización de los arquetipos con variables que no se usaron para formarlos (edad, escolaridad, antecedentes). Los tres subconjuntos son semejantes (no lectores: `r f1(pt("nolee")["entrenamiento"])`%, `r f1(pt("nolee")["validacion"])`% y `r f1(pt("nolee")["prueba"])`%; edad media: `r f1(pt("edad")["entrenamiento"])`, `r f1(pt("edad")["validacion"])` y `r f1(pt("edad")["prueba"])` años).
+
+**Propósito y alcance.** *K-means* se usa aquí como herramienta exploratoria para proponer arquetipos de lector que sirvan para diseñar estrategias, no como prueba de que esos grupos "existen". Por eso no se hace inferencia sobre los arquetipos: sus pesos por año se reportan de forma descriptiva, ponderados con el factor de expansión.
+
+**Variables y valores "no aplica".** Se usaron ocho variables de comportamiento: los conteos de libros, revistas y periódicos y los minutos de lectura, transformados con $\log(1 + x)$ por su asimetría, y cuatro indicadores (lee internet, lee historietas, lee libros digitales y acostumbra leer). *K-means* necesita un valor numérico para todas las personas, así que los dos "no aplica" se trataron de forma explícita: **los minutos de lectura de quien no lee ningún material se fijaron en 0**, porque no dedica tiempo a leer, y **la lectura digital de quien no leyó libros se fijó en 0** ("no lee libros digitales"). Se descartó eliminar a esas personas, porque se perdería al `r f1(100 * mean(D$tipo_lector == "No lee"))`% de la muestra, que no lee nada, y se descartó imputar la media, porque inventaría un comportamiento que no existe. La consecuencia es que los no lectores forman su propio grupo. Las variables se estandarizaron con el conjunto de entrenamiento.
+
+**Número de arquetipos.** Se eligió con el conjunto de validación (Figura \ref{fig:fig-k}, Anexo C). La **silueta** mide qué tan separado está cada grupo de los demás (Rousseeuw, 1987), y la **estabilidad** (índice de Rand ajustado; Hubert y Arabie, 1985) compara la asignación de la validación a los centroides del entrenamiento con un *k-means* hecho solo con la validación. La estabilidad cae de `r f2(sel_k$ari[sel_k$k == k_sel])` con `r k_sel` grupos a `r f2(sel_k$ari[sel_k$k == k_sel + 1])` con `r k_sel + 1`, así que se eligieron **`r k_sel` arquetipos**. En el conjunto de prueba, usado una sola vez, la silueta fue de `r f2(sil_pru)` y la estabilidad de `r f2(ari_pru)`: los arquetipos se reproducen en datos que el modelo no vio.
+
+# 3. Resultados
+
+## 3.1 Análisis descriptivo
 
 ```{r descriptivos}
 # ---- Medidas de las variables numéricas ----
@@ -401,7 +577,7 @@ rho <- cor(R, method = "spearman", use = "pairwise.complete.obs")
 
 Los porcentajes de esta sección se ponderan con el factor de expansión para representar a la población de cada año; las medidas de las variables numéricas describen la muestra.
 
-**Variables numéricas.** La edad es casi simétrica (media de `r f1(me["Media"])` y mediana de `r me["Mediana"]` años; sesgo de `r f1(me["Sesgo"])`). Los conteos de lectura, en cambio, tienen una fuerte asimetría a la derecha (Tabla \ref{tab:tabla-medidas}): entre quienes leyeron libros, la mediana es de `r ml["Mediana"]` y la mitad central leyó entre `r ml["Q1"]` y `r ml["Q3"]` libros, pero la media sube a `r f1(ml["Media"])` (sesgo de `r f1(ml["Sesgo"])`, curtosis de `r f1(ml["Curtosis"])`) y `r fmt(at_lib["n"])` personas (`r f1(100 * at_lib["n"] / ml["n"])`%) leyeron más de `r at_lib["lim"]` libros. Son valores válidos de lectores intensivos y se conservan. Los minutos se comportan igual (mediana de `r mm["Mediana"]` y media de `r f1(mm["Media"])`). Por eso las comparaciones descriptivas usan medianas y, en *k-means*, los conteos se transforman con $\log(1 + x)$ (secciones 5.3 y 6). Los histogramas están en el Anexo B.
+**Variables numéricas.** La edad es casi simétrica (media de `r f1(me["Media"])` y mediana de `r me["Mediana"]` años; sesgo de `r f1(me["Sesgo"])`). Los conteos de lectura, en cambio, tienen una fuerte asimetría a la derecha (Tabla \ref{tab:tabla-medidas}): entre quienes leyeron libros, la mediana es de `r ml["Mediana"]` y la mitad central leyó entre `r ml["Q1"]` y `r ml["Q3"]` libros, pero la media sube a `r f1(ml["Media"])` (sesgo de `r f1(ml["Sesgo"])`, curtosis de `r f1(ml["Curtosis"])`) y `r fmt(at_lib["n"])` personas (`r f1(100 * at_lib["n"] / ml["n"])`%) leyeron más de `r at_lib["lim"]` libros. Son valores válidos de lectores intensivos y se conservan. Los minutos se comportan igual (mediana de `r mm["Mediana"]` y media de `r f1(mm["Media"])`). Por eso las comparaciones descriptivas usan medianas y, en *k-means*, los conteos se transforman con $\log(1 + x)$ (secciones 2.5 y 3.3). Los histogramas están en el Anexo B.
 
 ```{r tabla-medidas}
 # Redondea y da formato a la tabla de medidas
@@ -413,107 +589,11 @@ tabla(med_t, "Medidas descriptivas de las variables numéricas (muestra sin pond
 
 **Variables categóricas.** En la población representada, `r f1(tl["No lee"])`% no leyó ningún material, `r f1(tl["Solo otros materiales"])`% leyó otros materiales pero no libros, `r f1(tl["Solo libros"])`% leyó solo libros y `r f1(tl["Libros y otros"])`%, libros y otros materiales; los libros (`r f1(mat["Libros"])`%) y el internet (`r f1(mat["Internet"])`%) son lo más leído. La categoría mediana es media superior en escolaridad y de `r sub("-", " a ", med_ord(cat_tabs[["Grupo de edad"]]))` años en edad, y `r f1(ih["0"])`% no tuvo ningún estímulo a la lectura en el hogar durante la infancia. Las distribuciones completas, los antecedentes por separado y la no lectura por entidad (de `r f1(min(ent$p))`% a `r f1(max(ent$p))`%) están en el Anexo B.
 
-**Comparaciones.** Entre 2019 y 2024 la no lectura subió de `r f1(ta(2019, "No lee"))`% a `r f1(ta(2024, "No lee"))`% y quienes leen *solo* libros pasaron de `r f1(ta(2019, "Solo libros"))`% a `r f1(ta(2024, "Solo libros"))`%, mientras que bajaron quienes leen varios materiales; la lectura de libros digitales saltó de `r f1(an(2020, "Libro digital (%)*"))`% en 2020 a `r f1(an(2021, "Libro digital (%)*"))`% en 2021 y se mantuvo. La no lectura aumentó dentro de los cuatro niveles de escolaridad, sobre todo con secundaria (de `r nl(2019, "Secundaria")`% a `r nl(2024, "Secundaria")`%), aunque la población de 2024 tiene más escolaridad. Entre los lectores de libros, la mediana pasa de `r ge(g_esc, "Primaria o menos", "Mediana")` libro con primaria o menos a `r ge(g_esc, "Superior", "Mediana")` con educación superior (Anexo B). La Figura \ref{fig:fig-cruces} muestra los contrastes más marcados: la no lectura va de `r f1(cp(c_esc, "Primaria o menos", "No lee"))`% con primaria o menos a `r f1(cp(c_esc, "Superior", "No lee"))`% con educación superior, y de `r f1(cp(c_hog, 0, "No lee"))`% sin estímulos en el hogar a `r f1(cp(c_hog, 4, "No lee"))`% con los cuatro; haber tenido libros en casa se asocia con más lectura de libros incluso dentro de cada nivel educativo (de `r lc("Primaria o menos", 0)`% a `r lc("Primaria o menos", 1)`% con primaria o menos). Por último, las variables de lectura están poco correlacionadas entre sí (Spearman: libros y revistas, $\rho$ = `r f2(rho["Libros", "Revistas"])`; libros y minutos, $\rho$ = `r f2(rho["Libros", "Minutos"])`), lo que justifica buscar perfiles con varias dimensiones.
+**Comparaciones.** Entre 2019 y 2024 la no lectura subió de `r f1(ta(2019, "No lee"))`% a `r f1(ta(2024, "No lee"))`% y quienes leen *solo* libros pasaron de `r f1(ta(2019, "Solo libros"))`% a `r f1(ta(2024, "Solo libros"))`%, mientras que bajaron quienes leen varios materiales; la lectura de libros digitales saltó de `r f1(an(2020, "Libro digital (%)*"))`% en 2020 a `r f1(an(2021, "Libro digital (%)*"))`% en 2021 y se mantuvo. La no lectura aumentó dentro de los cuatro niveles de escolaridad, sobre todo con secundaria (de `r nl(2019, "Secundaria")`% a `r nl(2024, "Secundaria")`%), aunque la población de 2024 tiene más escolaridad. Entre los lectores de libros, la mediana pasa de `r ge(g_esc, "Primaria o menos", "Mediana")` libro con primaria o menos a `r ge(g_esc, "Superior", "Mediana")` con educación superior (Anexo B). Los contrastes más marcados (Figura \ref{fig:fig-cruces}, Anexo B) son estos: la no lectura va de `r f1(cp(c_esc, "Primaria o menos", "No lee"))`% con primaria o menos a `r f1(cp(c_esc, "Superior", "No lee"))`% con educación superior, y de `r f1(cp(c_hog, 0, "No lee"))`% sin estímulos en el hogar a `r f1(cp(c_hog, 4, "No lee"))`% con los cuatro; haber tenido libros en casa se asocia con más lectura de libros incluso dentro de cada nivel educativo (de `r lc("Primaria o menos", 0)`% a `r lc("Primaria o menos", 1)`% con primaria o menos). Por último, las variables de lectura están poco correlacionadas entre sí (Spearman: libros y revistas, $\rho$ = `r f2(rho["Libros", "Revistas"])`; libros y minutos, $\rho$ = `r f2(rho["Libros", "Minutos"])`), lo que justifica buscar perfiles con varias dimensiones.
 
-```{r fig-cruces, fig.height=1.75, fig.cap="Distribución ponderada del tipo de lector dentro de cada nivel de escolaridad y según el número de estímulos a la lectura en el hogar durante la infancia (\\% por fila)."}
-# Orden de las filas en la gráfica
-niveles <- c(rev(levels(D$escolaridad)), paste(4:0, "estímulos"))
-# Barras apiladas: tipo de lector por escolaridad y por estímulos en el hogar
-bind_rows(c_esc %>% mutate(Panel = "Escolaridad", Grupo = as.character(Grupo)),
-          c_hog %>% mutate(Panel = "Estímulos a la lectura en el hogar", Grupo = paste(Grupo, "estímulos"))) %>%
-  mutate(Grupo = factor(Grupo, niveles)) %>%
-  ggplot(aes(p, Grupo, fill = tipo_lector)) +
-  geom_col(width = 0.75, colour = "white", linewidth = 0.4, position = position_stack(reverse = TRUE)) +
-  geom_text(aes(label = round(p)), position = position_stack(vjust = 0.5, reverse = TRUE), size = 2.4, colour = "#0b0b0b") +
-  facet_wrap(~ Panel, scales = "free_y") +
-  scale_fill_manual(values = col_tipo) + scale_x_continuous(expand = expansion(mult = c(0, 0.02))) +
-  labs(x = "% del grupo", y = NULL, fill = NULL) + tema
-```
+Estos resultados motivan las preguntas secundarias planteadas en la sección 2.2, que se responden a continuación con inferencia sobre grupos definidos de antemano.
 
-Estos resultados llevan a tres preguntas inferenciales, con grupos definidos de antemano: (1) ¿cambió entre 2019 y 2024 la proporción de no lectores, de lectores de libros, de periódicos y de internet, también dentro de cada nivel de escolaridad?; (2) ¿difiere la cantidad de libros que leen los lectores según su escolaridad?, y (3) ¿se asocia leer libros con haber tenido libros en casa?
-
-# 5. Análisis inferencial
-
-```{r inferencia}
-# ---- Tamaño efectivo por año (efecto de diseño de Kish por la ponderación) ----
-efec <- D %>% group_by(anio) %>% summarise(n = n(), neff = sum(factor)^2 / sum(factor^2)) %>% mutate(deff = n / neff)
-deff_tot <- nrow(D) / (sum(D$factor)^2 / sum(D$factor^2))
-z_ic <- qnorm(1 - alfa / 2)
-# Indicadores definidos antes de las pruebas
-D$no_lee <- as.integer(D$tipo_lector == "No lee")
-indic <- c(no_lee = "No leyó ningún material", lee_libros = "Leyó libros", lee_periodicos = "Leyó periódicos", lee_internet = "Lee internet")
-# Proporción ponderada y tamaño efectivo de un grupo
-prop_w <- function(d, v) d %>% summarise(p = sum(.data[[v]] * factor) / sum(factor), neff = sum(factor)^2 / sum(factor^2), .groups = "drop")
-# IC de una proporción (2019 y 2024) con el tamaño efectivo
-icp <- bind_rows(lapply(names(indic), function(v) D %>% filter(anio %in% c(2019, 2024)) %>% group_by(anio) %>%
-  prop_w(v) %>% mutate(var = v))) %>%
-  mutate(se = sqrt(p * (1 - p) / neff), li = p - z_ic * se, ls = p + z_ic * se, np = neff * p, nq = neff * (1 - p))
-# IC de la diferencia 2024 - 2019 y estadístico Z con proporción combinada
-dif_ic <- function(t) t %>% pivot_wider(names_from = anio, values_from = c(p, neff)) %>%
-  mutate(d = p_2024 - p_2019, se = sqrt(p_2019 * (1 - p_2019) / neff_2019 + p_2024 * (1 - p_2024) / neff_2024),
-         li = d - z_ic * se, ls = d + z_ic * se,
-         pc = (p_2019 * neff_2019 + p_2024 * neff_2024) / (neff_2019 + neff_2024),
-         z = d / sqrt(pc * (1 - pc) * (1 / neff_2019 + 1 / neff_2024)))
-dif <- dif_ic(icp %>% select(var, anio, p, neff))
-dv <- function(v, col) sapply(v, function(x) 100 * dif[[col]][dif$var == x])
-iv <- function(v, a, col) sapply(v, function(x) 100 * icp[[col]][icp$var == x & icp$anio == a])
-# No lectura 2019 vs 2024 dentro de cada nivel de escolaridad
-esc_dif <- dif_ic(D %>% filter(anio %in% c(2019, 2024), !is.na(escolaridad)) %>% group_by(escolaridad, anio) %>% prop_w("no_lee"))
-ed_v <- function(e, col) 100 * esc_dif[[col]][esc_dif$escolaridad == e]
-# Pruebas Z: no lectura (cola derecha), libros (dos colas), periódicos (cola izquierda)
-z_der <- qnorm(1 - alfa); z_dos <- qnorm(1 - alfa / 2)
-zt <- function(v) dif$z[dif$var == v]
-p_nl <- 1 - pnorm(zt("no_lee")); p_lib <- 2 * (1 - pnorm(abs(zt("lee_libros")))); p_per <- pnorm(zt("lee_periodicos"))
-
-# ---- Libros leídos por escolaridad (lectores de libros, log(1 + x)) ----
-B <- D %>% filter(lee_libros == 1, !is.na(escolaridad)) %>% mutate(ll = log1p(n_libros))
-lb <- B %>% group_by(escolaridad) %>% summarise(n = n(), m = mean(ll), de = sd(ll), v = var(ll), med = median(n_libros),
-                                                sesgo = skewness(ll), sw = shapiro.test(ll)$p.value) %>%
-  mutate(t = qt(1 - alfa / 2, n - 1), li = m - t * de / sqrt(n), ls = m + t * de / sqrt(n))
-lbv <- function(e, col) lb[[col]][lb$escolaridad == e]
-# IC del cociente de varianzas (nivel con mayor y menor varianza)
-i_max <- which.max(lb$v); i_min <- which.min(lb$v)
-F_v <- lb$v[i_max] / lb$v[i_min]; gl1 <- lb$n[i_max] - 1; gl2 <- lb$n[i_min] - 1
-ic_F <- c(F_v / qf(1 - alfa / 2, gl1, gl2), F_v / qf(alfa / 2, gl1, gl2))
-# ANOVA, Welch, Levene y Kruskal-Wallis (medianas)
-an_l <- aov(ll ~ escolaridad, data = B); s_an <- summary(an_l)[[1]]
-F_an <- s_an$`F value`[1]; gl_an <- s_an$Df; p_an <- s_an$`Pr(>F)`[1]; crit_an <- qf(1 - alfa, gl_an[1], gl_an[2])
-res_an <- residuals(an_l)
-lev <- leveneTest(ll ~ factor(escolaridad, ordered = FALSE), data = B); bart <- bartlett.test(ll ~ escolaridad, data = B)
-welch <- oneway.test(ll ~ escolaridad, data = B)
-kw <- kruskal.test(n_libros ~ escolaridad, data = B); crit_kw <- qchisq(1 - alfa, kw$parameter)
-
-# ---- Leer libros y libros en casa en la infancia: chi cuadrada con corrección de Rao-Scott ----
-C2 <- D %>% filter(!is.na(inf_libros_casa))
-ch_casa <- chisq.test(table(C2$lee_libros, C2$inf_libros_casa), correct = FALSE)
-chi_rs <- unname(ch_casa$statistic) / deff_tot; crit_casa <- qchisq(1 - alfa, 1); p_rs <- 1 - pchisq(chi_rs, 1)
-casa_p <- C2 %>% group_by(inf_libros_casa) %>% summarise(p = wp(lee_libros, factor))
-```
-
-## 5.1 Preguntas, técnicas y supuestos
-
-Siguiendo la retroalimentación recibida, la inferencia se hace sobre **indicadores y grupos definidos antes de las pruebas**, y no sobre los grupos de *k-means*. Como los grupos de *k-means* se construyen buscando patrones en los mismos datos, probar después diferencias entre ellos puede producir significancias engañosas; por eso el agrupamiento se reporta aparte como exploración (sección 6). La Tabla \ref{tab:tabla-tecnicas} relaciona cada pregunta con su técnica. Todas las pruebas usan $\alpha$ = `r alfa` y todos los intervalos, una confianza de `r 100 * (1 - alfa)`%.
-
-```{r tabla-tecnicas}
-# Pregunta y técnica que la responde
-tribble(
-  ~`Pregunta`, ~`Población y grupos`, ~`Técnica`, ~`Distribución`,
-  "¿Qué proporción no leyó, leyó libros, periódicos o internet en 2019 y 2024?", "Población alfabeta, cada año", "IC de una proporción", "Normal (Z)",
-  "¿Cuánto cambió cada proporción?", "2019 frente a 2024", "IC de la diferencia de proporciones", "Normal (Z)",
-  "¿Aumentó la no lectura? ¿Cambió la lectura de libros? ¿Bajó la de periódicos?", "2019 frente a 2024", "Pruebas de diferencia de proporciones", "Normal (Z)",
-  "¿Aumentó la no lectura dentro de cada nivel de escolaridad?", "Cuatro niveles de escolaridad", "IC de la diferencia de proporciones", "Normal (Z)",
-  "¿Cuántos libros leen los lectores de cada nivel?", "Lectores de libros, por escolaridad", "IC de la media; IC del cociente de varianzas", "t; F",
-  "¿Difiere la cantidad de libros entre niveles?", "Lectores de libros, por escolaridad", "ANOVA (y Welch); Kruskal–Wallis", "F; chi cuadrada",
-  "¿Se asocia leer libros con haber tenido libros en casa?", "Población alfabeta", "Prueba de independencia (Rao–Scott)", "Chi cuadrada") %>%
-  tabla("Preguntas inferenciales, población, técnica y distribución muestral.") %>%
-  column_spec(1, width = "5.6cm") %>% column_spec(2, width = "3.6cm") %>% column_spec(3, width = "3.8cm")
-```
-
-**Diseño muestral.** MOLEC tiene un diseño estratificado y por conglomerados, y el factor de expansión pondera a cada persona. Las proporciones se estiman con el factor de expansión y, para su incertidumbre, se usa el **tamaño efectivo de muestra** de Kish, $n_{ef} = (\sum w)^2/\sum w^2$, que reduce el tamaño de la muestra según la variabilidad de los pesos: el efecto de diseño por ponderación va de `r f2(min(efec$deff))` a `r f2(max(efec$deff))` según el año, es decir, cada año la muestra "vale" como una de unas `r fmt(round(min(efec$neff)))` a `r fmt(round(max(efec$neff)))` personas. En la prueba $\chi^2$ el estadístico se divide entre el efecto de diseño (corrección de primer orden de Rao y Scott, 1984). Esta corrección no incorpora los conglomerados, así que los intervalos siguen siendo una aproximación algo optimista. Cada año es una muestra independiente y se selecciona una sola persona por vivienda.
-
-**Aproximación normal.** Una proporción muestral es el promedio de una variable que vale 1 o 0, así que, por el teorema del límite central, su distribución se aproxima a la normal cuando la muestra es grande; la regla usual es que $n\hat p$ y $n(1-\hat p)$ sean al menos 5. Con el tamaño efectivo, el menor de esos valores en los intervalos por año es `r f1(min(c(icp$np, icp$nq)))` y, dentro de los niveles de escolaridad, `r f1(min(c(esc_dif$neff_2019 * esc_dif$p_2019, esc_dif$neff_2024 * esc_dif$p_2024)))`, así que la aproximación es válida (Anexo C).
-
-## 5.2 ¿Cambió la lectura entre 2019 y 2024?
+## 3.2 ¿Cambió la lectura entre 2019 y 2024?
 
 **Intervalos de confianza.** Para cada indicador se construyó un intervalo de una proporción, $\hat p \pm z_{\alpha/2}\sqrt{\hat p(1-\hat p)/n_{ef}}$, con $z_{0.02}$ = `r f2(z_ic)`, y uno para la diferencia $p_{2024} - p_{2019}$ con el error estándar $\sqrt{\hat p_1\hat q_1/n_{ef,1} + \hat p_2\hat q_2/n_{ef,2}}$ (Tabla \ref{tab:tabla-ic}). Con `r 100 * (1 - alfa)`% de confianza, la no lectura aumentó entre `r f1(dv("no_lee", "li"))` y `r f1(dv("no_lee", "ls"))` puntos y la lectura de periódicos cayó entre `r f1(-dv("lee_periodicos", "ls"))` y `r f1(-dv("lee_periodicos", "li"))` puntos. En cambio, los intervalos de la lectura de libros y de internet incluyen el cero, así que no hay evidencia de que hayan cambiado.
 
@@ -536,7 +616,7 @@ tibble(Indicador = unname(indic),
 
 **No lectura dentro de cada nivel de escolaridad.** La Figura \ref{fig:fig-ic} (b) muestra los intervalos de la diferencia de la no lectura entre 2019 y 2024 dentro de cada nivel. El aumento es claro con secundaria (entre `r f1(ed_v("Secundaria", "li"))` y `r f1(ed_v("Secundaria", "ls"))` puntos) y con media superior (entre `r f1(ed_v("Media superior", "li"))` y `r f1(ed_v("Media superior", "ls"))`); con primaria o menos y con educación superior el intervalo incluye el cero, en parte porque esos grupos son más pequeños o tienen proporciones extremas. Así, el aumento de la no lectura no se explica por un cambio en la escolaridad de la población: ocurre al menos en los niveles intermedios.
 
-```{r fig-ic, fig.height=2.1, fig.cap="Intervalos de confianza al 96\\% (normal, con tamaño efectivo): (a) proporción de cada indicador en 2019 y 2024; (b) diferencia 2024 - 2019 de la no lectura dentro de cada nivel de escolaridad. La línea vertical de (b) marca el cero."}
+```{r fig-ic, fig.height=1.85, fig.cap="Intervalos de confianza al 96\\% (normal, con tamaño efectivo): (a) proporción de cada indicador en 2019 y 2024; (b) diferencia 2024 - 2019 de la no lectura dentro de cada nivel de escolaridad. La línea vertical de (b) marca el cero."}
 # (a) Proporción por indicador y año
 ia <- icp %>% mutate(y = as.numeric(factor(var, rev(names(indic)))) + ifelse(anio == 2019, 0.15, -0.15), anio = factor(anio))
 g_a <- ggplot(ia, aes(100 * p, y, colour = anio)) +
@@ -552,15 +632,15 @@ g_b <- ggplot(esc_dif, aes(100 * d, escolaridad)) + geom_vline(xintercept = 0, c
 gridExtra::grid.arrange(g_a, g_b, ncol = 2, widths = c(1.15, 1))
 ```
 
-## 5.3 ¿Cuántos libros leen los lectores de libros según su escolaridad?
+## 3.3 ¿A quién dirigir el fomento? Escolaridad y hogar
 
-Entre quienes leyeron libros, el conteo es muy asimétrico (sección 4), así que se analiza $\log(1 + \text{libros})$, cuya distribución es mucho menos asimétrica (Anexo C). Los intervalos *t* de la media del logaritmo, regresados a la escala original, dan una "media geométrica" de `r f1(expm1(lbv("Primaria o menos", "m")))` libros con primaria o menos [`r f1(expm1(lbv("Primaria o menos", "li")))`, `r f1(expm1(lbv("Primaria o menos", "ls")))`] y de `r f1(expm1(lbv("Superior", "m")))` con educación superior [`r f1(expm1(lbv("Superior", "li")))`, `r f1(expm1(lbv("Superior", "ls")))`]; los intervalos de los cuatro niveles no se traslapan. Para revisar la igualdad de varianzas se construyó un intervalo para el cociente entre la varianza mayor (`r tolower(lb$escolaridad[i_max])`) y la menor (`r tolower(lb$escolaridad[i_min])`), con la distribución $F$ de (`r fmt(gl1)`, `r fmt(gl2)`) grados de libertad: $\sigma_1^2/\sigma_2^2 \in$ [`r f2(ic_F[1])`, `r f2(ic_F[2])`]. Como no incluye el 1, las varianzas difieren, igual que indica la prueba de Levene (valor *p* `r fpv(lev[["Pr(>F)"]][1])`).
+Entre quienes leyeron libros, el conteo es muy asimétrico (sección 3.1), así que se analiza $\log(1 + \text{libros})$, cuya distribución es mucho menos asimétrica (Anexo C). Los intervalos *t* de la media del logaritmo, regresados a la escala original, dan una "media geométrica" de `r f1(expm1(lbv("Primaria o menos", "m")))` libros con primaria o menos [`r f1(expm1(lbv("Primaria o menos", "li")))`, `r f1(expm1(lbv("Primaria o menos", "ls")))`] y de `r f1(expm1(lbv("Superior", "m")))` con educación superior [`r f1(expm1(lbv("Superior", "li")))`, `r f1(expm1(lbv("Superior", "ls")))`]; los intervalos de los cuatro niveles no se traslapan. Para revisar la igualdad de varianzas se construyó un intervalo para el cociente entre la varianza mayor (`r tolower(lb$escolaridad[i_max])`) y la menor (`r tolower(lb$escolaridad[i_min])`), con la distribución $F$ de (`r fmt(gl1)`, `r fmt(gl2)`) grados de libertad: $\sigma_1^2/\sigma_2^2 \in$ [`r f2(ic_F[1])`, `r f2(ic_F[2])`]. Como no incluye el 1, las varianzas difieren, igual que indica la prueba de Levene (valor *p* `r fpv(lev[["Pr(>F)"]][1])`).
 
 **Prueba 4: ANOVA.** $H_0$: las medias de $\log(1 + \text{libros})$ son iguales en los cuatro niveles; $H_1$: al menos una difiere. El estadístico *F* sigue una distribución $F$ con (`r gl_an[1]`, `r fmt(gl_an[2])`) grados de libertad. Se obtuvo *F* = `r f1(F_an)`, mayor que el valor crítico $F_{0.04}$ = `r f2(crit_an)` (valor *p* `r fpv(p_an)`), así que se rechaza $H_0$. Supuestos: la prueba de Shapiro–Wilk rechaza la normalidad en los cuatro niveles (Anexo C), algo esperable con muestras grandes y un conteo discreto, pero con `r fmt(min(lb$n))` o más lectores por nivel el teorema del límite central hace que las medias muestrales sean aproximadamente normales, y el ANOVA es robusto a esa desviación. La varianza no es homogénea, por lo que el resultado se confirmó con el ANOVA de Welch, que no la supone (*F* = `r f1(welch$statistic)`, valor *p* `r fpv(welch$p.value)`).
 
 **Prueba 5: Kruskal–Wallis.** Como alternativa no paramétrica, que no requiere normalidad, se compararon las medianas del número de libros: $H_0$: la mediana es igual en los cuatro niveles; $H_1$: al menos una difiere (interpretación válida porque las distribuciones de los niveles tienen forma parecida). El estadístico *H* sigue aproximadamente una distribución $\chi^2$ con `r kw$parameter` grados de libertad. Se obtuvo *H* = `r f1(kw$statistic)`, mayor que el valor crítico `r f2(crit_kw)` (valor *p* `r fpv(kw$p.value)`): las medianas difieren, de `r lbv("Primaria o menos", "med")` libro con primaria o menos a `r lbv("Superior", "med")` con educación superior.
 
-**Prueba 6: leer libros y libros en casa.** $H_0$: leer libros es independiente de haber tenido libros en casa durante la infancia; $H_1$: están asociados. Todas las frecuencias esperadas superan 5 (mínimo `r f1(min(ch_casa$expected))`). El estadístico $\chi^2$ = `r f1(ch_casa$statistic)`, dividido entre el efecto de diseño (`r f2(deff_tot)`), da $\chi^2_{RS}$ = `r f1(chi_rs)`, mayor que el valor crítico $\chi^2_{0.04,\,1}$ = `r f2(crit_casa)` (valor *p* `r fpv(p_rs)`): se rechaza $H_0$. Leyó libros `r f1(casa_p$p[casa_p$inf_libros_casa == 1])`% de quienes tuvieron libros en casa, frente a `r f1(casa_p$p[casa_p$inf_libros_casa == 0])`% de quienes no los tuvieron. La Tabla \ref{tab:tabla-pruebas} resume las seis pruebas y la Figura \ref{fig:fig-rechazo} ubica cada estadístico respecto a su zona de rechazo.
+**Prueba 6: leer libros y libros en casa.** $H_0$: leer libros es independiente de haber tenido libros en casa durante la infancia; $H_1$: están asociados. Todas las frecuencias esperadas superan 5 (mínimo `r f1(min(ch_casa$expected))`). El estadístico $\chi^2$ = `r f1(ch_casa$statistic)`, dividido entre el efecto de diseño (`r f2(deff_tot)`), da $\chi^2_{RS}$ = `r f1(chi_rs)`, mayor que el valor crítico $\chi^2_{0.04,\,1}$ = `r f2(crit_casa)` (valor *p* `r fpv(p_rs)`): se rechaza $H_0$. Leyó libros `r f1(casa_p$p[casa_p$inf_libros_casa == 1])`% de quienes tuvieron libros en casa, frente a `r f1(casa_p$p[casa_p$inf_libros_casa == 0])`% de quienes no los tuvieron. La Tabla \ref{tab:tabla-pruebas} resume las seis pruebas y la Figura \ref{fig:fig-rechazo} (Anexo C) ubica cada estadístico respecto a su zona de rechazo.
 
 ```{r tabla-pruebas}
 # Resumen de las pruebas de hipótesis
@@ -576,132 +656,7 @@ tribble(
   tabla("Resumen de las pruebas de hipótesis ($\\alpha$ = 0.04).", escape = FALSE, ajustar = TRUE)
 ```
 
-```{r fig-rechazo, fig.height=2.9, fig.cap="Distribución muestral, zona de rechazo (rojo, a partir del valor crítico) y estadístico de prueba (azul) de las pruebas 1, 2, 4 y 6. Cuando el estadístico queda fuera de la escala, una flecha indica su valor."}
-# Zona de rechazo (derecha, izquierda o dos colas) y estadístico de prueba
-zona <- function(dens, crit, est, xmin, xmax, titulo, eje, cola = "der") {
-  d <- data.frame(x = seq(xmin, xmax, length.out = 500)); d$y <- dens(d$x)
-  ytop <- max(d$y[d$x >= xmin + 0.05 * (xmax - xmin)])
-  colas <- switch(cola, der = list(d[d$x >= crit, ]), izq = list(d[d$x <= crit, ]), dos = list(d[d$x <= -crit, ], d[d$x >= crit, ]))
-  g <- ggplot(d, aes(x, y)) +
-    lapply(colas, function(t) geom_area(data = t, fill = rojo, alpha = 0.3)) + geom_line(linewidth = 0.5) +
-    coord_cartesian(ylim = c(0, ytop * 1.2)) +
-    geom_vline(xintercept = if (cola == "dos") c(-crit, crit) else crit, colour = rojo, linetype = "22") +
-    annotate("text", x = crit, y = ytop * 1.08, label = paste("crítico =", if (cola == "dos") paste0("±", f2(crit)) else f2(crit)),
-             colour = rojo, hjust = -0.05, size = 2.4) +
-    labs(title = titulo, x = eje, y = NULL) + tema + theme(axis.text.y = element_blank())
-  if (est <= xmax) {
-    g + geom_vline(xintercept = est, colour = azul) +
-      annotate("text", x = est, y = ytop * 0.45, label = paste("estadístico =", f2(est)), colour = azul,
-               hjust = if (est < 0 || est > xmin + 0.6 * (xmax - xmin)) 1.05 else -0.05, size = 2.4)
-  } else {
-    g + annotate("segment", x = xmin + 0.55 * (xmax - xmin), xend = xmax, y = ytop * 0.55, yend = ytop * 0.55,
-                 colour = azul, arrow = arrow(length = unit(0.12, "cm"))) +
-      annotate("text", x = xmax, y = ytop * 0.7, label = paste("estadístico =", f1(est)), colour = azul, hjust = 1, size = 2.4)
-  }
-}
-gridExtra::grid.arrange(
-  zona(dnorm, z_der, zt("no_lee"), -4, 5, "Prueba 1: no lectura (cola derecha)", "z"),
-  zona(dnorm, z_dos, zt("lee_libros"), -4, 4, "Prueba 2: libros (dos colas)", "z", cola = "dos"),
-  zona(function(x) df(x, gl_an[1], gl_an[2]), crit_an, F_an, 0, 3 * crit_an, "Prueba 4: ANOVA de libros por escolaridad", "F"),
-  zona(function(x) dchisq(x, 1), crit_casa, chi_rs, 0, 2.5 * crit_casa, "Prueba 6: libros × libros en casa", expression(chi^2)),
-  ncol = 2)
-```
-
-# 6. Exploración complementaria: arquetipos de lector con *k-means*
-
-```{r kmeans}
-# ---- Perfiles con k-means ----
-# Variables de agrupamiento: conteos en log(1 + x) y variables binarias (quien no lee: 0 minutos)
-Xk <- D %>% transmute(libros = log1p(n_libros), revistas = log1p(n_revistas), periodicos = log1p(n_periodicos),
-                      minutos = log1p(coalesce(minutos, 0)), internet = lee_internet, historietas = lee_historietas,
-                      digital = coalesce(lib_digital, 0L), acostumbra)
-# Subconjuntos de la partición
-s_ent <- D$particion == "entrenamiento"; s_val <- D$particion == "validacion"; s_pru <- D$particion == "prueba"
-# Estandarización con la media y la desviación estándar del entrenamiento
-Zk <- scale(Xk, center = colMeans(Xk[s_ent, ]), scale = apply(Xk[s_ent, ], 2, sd))
-# Asigna cada persona al centroide más cercano
-asignar <- function(Zs, C) apply(Zs, 1, function(z) which.min(colSums((t(C) - z)^2)))
-# Índice de Rand ajustado: coincidencia entre dos agrupamientos (1 = idénticos, 0 = al azar)
-ari <- function(a, b) {
-  t <- table(a, b); s1 <- sum(choose(t, 2)); a1 <- sum(choose(rowSums(t), 2)); b1 <- sum(choose(colSums(t), 2))
-  e <- a1 * b1 / choose(sum(t), 2); (s1 - e) / ((a1 + b1) / 2 - e)
-}
-# Prueba k = 2 a 8: suma de cuadrados (entrenamiento), silueta y estabilidad (validación)
-set.seed(2026)
-sel_k <- bind_rows(lapply(2:8, function(k) {
-  km <- kmeans(Zk[s_ent, ], centers = k, nstart = 25, iter.max = 100)
-  cv <- asignar(Zk[s_val, ], km$centers)
-  kv <- kmeans(Zk[s_val, ], centers = k, nstart = 25, iter.max = 100)
-  tibble(k = k, wss = km$tot.withinss, silueta = mean(silhouette(cv, dist(Zk[s_val, ]))[, 3]), ari = ari(cv, kv$cluster))
-}))
-# Regla: el mayor k con estabilidad de al menos 0.90
-k_sel <- max(sel_k$k[sel_k$ari >= 0.90])
-# Modelo final con el entrenamiento
-set.seed(2026)
-km <- kmeans(Zk[s_ent, ], centers = k_sel, nstart = 50, iter.max = 100)
-D$cl <- asignar(Zk, km$centers)
-# Evaluación única con el conjunto de prueba
-set.seed(2026)
-k_pru <- kmeans(Zk[s_pru, ], centers = k_sel, nstart = 50, iter.max = 100)
-sil_pru <- mean(silhouette(D$cl[s_pru], dist(Zk[s_pru, ]))[, 3])
-ari_pru <- ari(D$cl[s_pru], k_pru$cluster)
-# Nombre de cada perfil según su rasgo distintivo
-rasgo <- D %>% group_by(cl) %>% summarise(nmat = mean(n_materiales), his = mean(lee_historietas),
-                                          dig = mean(coalesce(lib_digital, 0L)), per = mean(lee_periodicos), int = mean(lee_internet))
-nom <- character(k_sel); resto <- rasgo$cl
-elegir <- function(v, f) { r <- resto[f(rasgo[[v]][match(resto, rasgo$cl)])]; resto <<- setdiff(resto, r); r }
-nom[elegir("nmat", which.min)] <- "No lectores"; nom[elegir("his", which.max)] <- "Lectores de historietas"
-nom[elegir("dig", which.max)] <- "Lectores de libros digitales"; nom[elegir("per", which.max)] <- "Lectores de periódicos"
-nom[elegir("int", which.max)] <- "Lectores de internet"; nom[resto] <- "Lectores de impresos"
-perfiles <- c("No lectores", "Lectores de periódicos", "Lectores de internet", "Lectores de impresos",
-              "Lectores de libros digitales", "Lectores de historietas")
-cortos <- c("No lectores", "Periódicos", "Internet", "Impresos", "Libros digitales", "Historietas")
-D$perfil <- factor(nom[D$cl], perfiles)
-# Guarda la base con el perfil de cada persona
-write.csv(D %>% select(-cl, -no_lee), "BasePerfiles_MOLEC_2019_2024.csv", row.names = FALSE, fileEncoding = "UTF-8")
-```
-
-```{r arquetipos}
-# Peso ponderado de cada arquetipo por año (descriptivo)
-col_arq <- setNames(c("#a3a29b", "#4a3aa7", "#eb6834", "#1baf7a", "#2a78d6", "#e87ba4"), cortos)
-arq_anio <- D %>% group_by(anio, perfil) %>% summarise(w = sum(factor), .groups = "drop") %>%
-  group_by(anio) %>% mutate(p = 100 * w / sum(w)) %>% ungroup() %>% mutate(corto = factor(cortos[as.integer(perfil)], cortos))
-aa <- function(a, pf) arq_anio$p[arq_anio$anio == a & arq_anio$perfil == pf]
-# ¿Cuánto explican la edad y la escolaridad? V de Cramér y acierto de la regla "arquetipo más común del grupo"
-v_cramer <- function(x, y) { t <- table(x, y); unname(sqrt(chisq.test(t)$statistic / (sum(t) * (min(dim(t)) - 1)))) }
-v_edad <- v_cramer(D$perfil, D$grupo_edad); v_esc <- v_cramer(D$perfil, D$escolaridad)
-Dd <- D %>% filter(!is.na(escolaridad))
-celdas <- Dd %>% count(grupo_edad, escolaridad, perfil) %>% group_by(grupo_edad, escolaridad) %>% mutate(p = n / sum(n))
-acierto <- sum(celdas %>% slice_max(n, n = 1, with_ties = FALSE) %>% pull(n)) / nrow(Dd)
-base_acierto <- max(table(Dd$perfil)) / nrow(Dd)
-max_celda <- max(celdas %>% group_by(grupo_edad, escolaridad) %>% summarise(m = max(p), .groups = "drop") %>% pull(m))
-# Composición de arquetipos por grupo de edad y escolaridad (ponderada)
-arq_dem <- bind_rows(
-  D %>% group_by(Grupo = as.character(grupo_edad), perfil) %>% summarise(w = sum(factor), .groups = "drop") %>% mutate(Panel = "Grupo de edad"),
-  Dd %>% group_by(Grupo = as.character(escolaridad), perfil) %>% summarise(w = sum(factor), .groups = "drop") %>% mutate(Panel = "Escolaridad")) %>%
-  group_by(Panel, Grupo) %>% mutate(p = 100 * w / sum(w)) %>% ungroup() %>%
-  mutate(corto = factor(cortos[as.integer(perfil)], cortos),
-         Grupo = factor(Grupo, rev(c("18-29", "30-44", "45-59", "60+", levels(D$escolaridad)))))
-ad <- function(g, pf) arq_dem$p[arq_dem$Grupo == g & arq_dem$perfil == pf]
-```
-
-**Propósito y alcance.** *K-means* se usa aquí como herramienta exploratoria para proponer arquetipos de lector que sirvan para diseñar estrategias, no como prueba de que esos grupos "existen". Por eso no se hace inferencia sobre los arquetipos: sus pesos por año se reportan de forma descriptiva, ponderados con el factor de expansión.
-
-**Variables y valores "no aplica".** Se usaron ocho variables de comportamiento: los conteos de libros, revistas y periódicos y los minutos de lectura, transformados con $\log(1 + x)$ por su asimetría, y cuatro indicadores (lee internet, lee historietas, lee libros digitales y acostumbra leer). *K-means* necesita un valor numérico para todas las personas, así que los dos "no aplica" se trataron de forma explícita: **los minutos de lectura de quien no lee ningún material se fijaron en 0**, porque no dedica tiempo a leer, y **la lectura digital de quien no leyó libros se fijó en 0** ("no lee libros digitales"). Se descartó eliminar a esas personas, porque se perdería al `r f1(100 * mean(D$tipo_lector == "No lee"))`% de la muestra, que no lee nada, y se descartó imputar la media, porque inventaría un comportamiento que no existe. La consecuencia es que los no lectores forman su propio grupo. Las variables se estandarizaron con el conjunto de entrenamiento.
-
-**Número de arquetipos.** Se eligió con el conjunto de validación (Figura \ref{fig:fig-k}). La **silueta** mide qué tan separado está cada grupo de los demás (Rousseeuw, 1987), y la **estabilidad** (índice de Rand ajustado; Hubert y Arabie, 1985) compara la asignación de la validación a los centroides del entrenamiento con un *k-means* hecho solo con la validación. La estabilidad cae de `r f2(sel_k$ari[sel_k$k == k_sel])` con `r k_sel` grupos a `r f2(sel_k$ari[sel_k$k == k_sel + 1])` con `r k_sel + 1`, así que se eligieron **`r k_sel` arquetipos**. En el conjunto de prueba, usado una sola vez, la silueta fue de `r f2(sil_pru)` y la estabilidad de `r f2(ari_pru)`: los arquetipos se reproducen en datos que el modelo no vio.
-
-```{r fig-k, fig.height=1.45, fig.width=5, fig.align="center", out.width="70%", fig.cap="Selección del número de arquetipos con el conjunto de validación: silueta media y estabilidad (ARI) para k = 2 a 8. La línea vertical marca el valor elegido."}
-# Silueta y estabilidad por número de grupos
-sel_k %>% select(k, Silueta = silueta, `Estabilidad (ARI)` = ari) %>%
-  pivot_longer(-k, names_to = "Criterio", values_to = "valor") %>%
-  ggplot(aes(k, valor, colour = Criterio)) +
-  geom_vline(xintercept = k_sel, linetype = "22", colour = "grey50") +
-  geom_line(linewidth = 0.7) + geom_point(size = 1.6) +
-  scale_colour_manual(values = c(Silueta = azul, `Estabilidad (ARI)` = "#eb6834")) +
-  scale_x_continuous(breaks = 2:8) + scale_y_continuous(limits = c(0, 1)) +
-  labs(x = "Número de arquetipos (k)", y = "Valor", colour = NULL) + tema + theme(legend.position = "right")
-```
+## 3.4 Arquetipos de lector
 
 ```{r tabla-perfiles}
 # Características de cada arquetipo (comportamiento arriba, caracterización abajo)
@@ -724,11 +679,19 @@ t(carac[, -1]) %>% `colnames<-`(cortos) %>%
 
 **Los arquetipos.** La Tabla \ref{tab:tabla-perfiles} los describe. Los **no lectores** (`r f1(aa(2024, "No lectores"))`% de la población en 2024) casi no leen nada. Los otros cinco se distinguen por el material que los define: todos los **lectores de periódicos** leen periódicos; todos los **lectores de internet** leen páginas de internet, y la mitad también libros; los **lectores de impresos** no leen en internet, pero tres de cada cuatro leen libros; los **lectores de libros digitales** son los más intensivos (`r f1(mean(D$n_libros[D$perfil == "Lectores de libros digitales"]))` libros al año), y los **lectores de historietas** combinan más materiales que nadie. De forma descriptiva, entre 2019 y 2024 el peso de los lectores de periódicos bajó de `r f1(aa(2019, "Lectores de periódicos"))`% a `r f1(aa(2024, "Lectores de periódicos"))`%, mientras que crecieron los no lectores y los lectores de libros digitales, en línea con lo que las pruebas 1 y 3 confirmaron para los indicadores.
 
-# 7. ¿Qué hacer con esta información?
+# 4. Discusión y conclusiones
+
+## 4.1 Respuesta a la pregunta de investigación
+
+Entre 2019 y 2024, con `r 100 * (1 - alfa)`% de confianza, la no lectura en la población urbana alfabeta aumentó entre `r f1(dv("no_lee", "li"))` y `r f1(dv("no_lee", "ls"))` puntos (prueba 1), sobre todo entre personas con secundaria y media superior, y la lectura de periódicos cayó entre `r f1(-dv("lee_periodicos", "ls"))` y `r f1(-dv("lee_periodicos", "li"))` puntos (prueba 3), mientras que no hay evidencia de cambio en la lectura de libros ni de internet (prueba 2). La cantidad de libros que leen los lectores crece con la escolaridad (pruebas 4 y 5) y leer libros se asocia con haber tenido libros en casa (prueba 6). La exploración con *k-means* propone seis arquetipos que se distinguen por *qué* leen más que por *quiénes* son, y cuyo peso se movió de los periódicos hacia los no lectores y los libros digitales. Así, los datos indican que el fomento de la lectura que motivó a MOLEC no ha frenado la no lectura, y sugieren dirigir las acciones según los gustos y canales de cada arquetipo, con atención especial al hogar.
+
+**Qué sí y qué no se pudo responder.** Se pudo responder cómo cambió la lectura en la población (qué indicadores cambiaron y cuánto), en qué niveles de escolaridad aumentó la no lectura, cómo se relacionan la escolaridad y el hogar con la lectura, y qué arquetipos de lector existen y cuánto pesa cada uno. No fue posible saber *por qué* cambió la lectura ni si las personas que dejaron de leer periódicos pasaron a leer en internet o dejaron de leer, porque cada año se entrevista a personas distintas. Tampoco se probó estadísticamente si el peso de los arquetipos cambió, porque se definieron con los mismos datos.
+
+## 4.2 Recomendaciones: estrategia de fomento por arquetipo
 
 **Segmentar por gustos de lectura, no solo por demografía.** Los arquetipos se relacionan con la edad y la escolaridad, pero no se reducen a ellas (Figura \ref{fig:fig-demografia}). La V de Cramér, que mide la fuerza de la asociación entre 0 y 1, es de `r f2(v_edad)` con la edad y de `r f2(v_esc)` con la escolaridad: una asociación moderada. Si se asignara a cada persona el arquetipo más común de su combinación de edad y escolaridad, se acertaría solo en `r f1(100 * acierto)`% de los casos, apenas más que el `r f1(100 * base_acierto)`% que se logra sin usar la demografía; y en ninguna de esas combinaciones el arquetipo más común reúne a más del `r f1(100 * max_celda)`% de las personas. Por ejemplo, entre los 18 y 29 años conviven lectores de internet (`r f1(ad("18-29", "Lectores de internet"))`%), no lectores (`r f1(ad("18-29", "No lectores"))`%) y lectores de libros digitales (`r f1(ad("18-29", "Lectores de libros digitales"))`%). Una campaña dirigida "a los jóvenes" o "a las personas con secundaria" mezclaría públicos que leen cosas distintas en canales distintos. Por eso la estrategia que proponemos parte de **qué y cómo lee cada persona** (el arquetipo) y usa la demografía solo para localizar a esos públicos.
 
-```{r fig-demografia, fig.height=2.2, fig.cap="Composición ponderada de los arquetipos de lector dentro de cada grupo de edad y nivel de escolaridad, 2019–2024 (\\% por fila)."}
+```{r fig-demografia, fig.height=1.85, fig.cap="Composición ponderada de los arquetipos de lector dentro de cada grupo de edad y nivel de escolaridad, 2019–2024 (\\% por fila)."}
 # Barras apiladas: arquetipos por grupo de edad y por escolaridad
 ggplot(arq_dem, aes(p, Grupo, fill = corto)) +
   geom_col(width = 0.75, colour = "white", linewidth = 0.4, position = position_stack(reverse = TRUE)) +
@@ -740,7 +703,9 @@ ggplot(arq_dem, aes(p, Grupo, fill = corto)) +
 
 La Tabla \ref{tab:tabla-estrategia} traduce los resultados en una propuesta por arquetipo. Las acciones son recomendaciones derivadas del análisis, no resultados probados; su efecto tendría que evaluarse con nuevas mediciones.
 
-Dos líneas son transversales. Primero, **el hogar**: leer libros se asocia con haber tenido libros en casa durante la infancia (prueba 6), incluso dentro de cada nivel de escolaridad (sección 4), por lo que llevar libros a los hogares con niños atiende a los no lectores de hoy y a los posibles lectores de mañana. Segundo, **la medición**: el peso de cada arquetipo puede calcularse cada año con MOLEC y servir como indicador para evaluar si las acciones funcionan, más allá del porcentaje general de lectores. Iniciativas existentes como Pasión por la lectura del Tecnológico de Monterrey (s. f.) ya ofrecen piezas de esta estrategia: sus cápsulas literarias de un minuto y su colección de libros digitales se ajustan a los lectores de internet, y sus círculos de lectura, a los lectores de libros digitales y de impresos.
+Dos líneas son transversales. Primero, **el hogar**: leer libros se asocia con haber tenido libros en casa durante la infancia (prueba 6), incluso dentro de cada nivel de escolaridad (sección 3.1), por lo que llevar libros a los hogares con niños atiende a los no lectores de hoy y a los posibles lectores de mañana. Segundo, **la medición**: el peso de cada arquetipo puede calcularse cada año con MOLEC y servir como indicador para evaluar si las acciones funcionan, más allá del porcentaje general de lectores. Iniciativas existentes como Pasión por la lectura del Tecnológico de Monterrey (s. f.) ya ofrecen piezas de esta estrategia: sus cápsulas literarias de un minuto y su colección de libros digitales se ajustan a los lectores de internet, y sus círculos de lectura, a los lectores de libros digitales y de impresos.
+
+**Consecuencias de no atender estas recomendaciones.** Si el fomento sigue dirigiéndose a promedios o a grupos demográficos, mezclará públicos con gustos y canales distintos y seguirá sin llegar a quienes no leen, cuyo peso en la población pasó de `r f1(aa(2019, "No lectores"))`% a `r f1(aa(2024, "No lectores"))`% entre 2019 y 2024. Como la lectura frecuente y la comprensión lectora se refuerzan mutuamente (Mol y Bus, 2011), dejar crecer la no lectura, sobre todo en los hogares con niños, puede trasladar el rezago a la siguiente generación. Y sin medir el peso de cada arquetipo, no habrá forma de saber si las acciones funcionan.
 
 ```{r tabla-estrategia}
 # Estrategia de fomento por arquetipo
@@ -763,47 +728,54 @@ tibble(
   column_spec(1, width = "2.4cm") %>% column_spec(2, width = "1.7cm") %>% column_spec(3, width = "4.1cm") %>% column_spec(4, width = "6.4cm")
 ```
 
-# 8. Conclusiones
+## 4.3 Limitaciones
 
-**Respuesta a la pregunta de investigación.** Entre 2019 y 2024, con `r 100 * (1 - alfa)`% de confianza, la no lectura en la población urbana alfabeta aumentó entre `r f1(dv("no_lee", "li"))` y `r f1(dv("no_lee", "ls"))` puntos (prueba 1), sobre todo entre personas con secundaria y media superior, y la lectura de periódicos cayó entre `r f1(-dv("lee_periodicos", "ls"))` y `r f1(-dv("lee_periodicos", "li"))` puntos (prueba 3), mientras que no hay evidencia de cambio en la lectura de libros ni de internet (prueba 2). La cantidad de libros que leen los lectores crece con la escolaridad (pruebas 4 y 5) y leer libros se asocia con haber tenido libros en casa (prueba 6). La exploración con *k-means* propone seis arquetipos que se distinguen por *qué* leen más que por *quiénes* son, y cuyo peso se movió de los periódicos hacia los no lectores y los libros digitales. Así, los datos indican que el fomento de la lectura que motivó a MOLEC no ha frenado la no lectura, y sugieren dirigir las acciones según los gustos y canales de cada arquetipo, con atención especial al hogar.
+Las estimaciones incorporan el factor de expansión y el efecto de diseño de la ponderación, pero no los conglomerados de MOLEC, por lo que los intervalos son algo optimistas. Los arquetipos son exploratorios y no se sometieron a inferencia. Al ser datos observacionales y cortes transversales, los resultados son asociaciones y cambios en la población, no causas ni trayectorias individuales.
 
-**Limitaciones.** Las estimaciones incorporan el factor de expansión y el efecto de diseño de la ponderación, pero no los conglomerados de MOLEC, por lo que los intervalos son algo optimistas. Los arquetipos son exploratorios y no se sometieron a inferencia. Al ser datos observacionales y cortes transversales, los resultados son asociaciones y cambios en la población, no causas ni trayectorias individuales.
+**Supuestos de los análisis.** Las pruebas e intervalos de proporciones usan la aproximación normal, justificada por el teorema del límite central ($n\hat p$ y $n(1-\hat p)$ mayores que 5 con el tamaño efectivo). El ANOVA supone normalidad, que la prueba de Shapiro–Wilk rechaza; se sostuvo en el teorema del límite central y se confirmó con Welch y Kruskal–Wallis. El intervalo del cociente de varianzas también supone normalidad y es sensible a su ausencia, por lo que se contrastó con la prueba de Levene. La corrección de Rao–Scott es de primer orden. Para *k-means*, los valores "no aplica" se fijaron en 0, lo que hace que los no lectores formen su propio grupo. Además, MOLEC se basa en autorreporte: la lectura registrada es la que cada persona declara.
 
-**Trabajo futuro.** Estimar la varianza con el diseño completo de MOLEC (estratos y conglomerados); estudiar si los antiguos lectores de periódicos pasaron a leer en internet o dejaron de leer, con información de cohortes o de panel, y evaluar las estrategias propuestas con los levantamientos siguientes.
+## 4.4 Nuevas preguntas de investigación
+
+* ¿Las personas que dejaron de leer periódicos pasaron a leer en internet o dejaron de leer? Responderlo requeriría datos de panel o de cohortes.
+* ¿Por qué la no lectura aumentó más entre las personas con secundaria y media superior?
+* ¿El crecimiento de la lectura de libros digitales a partir de 2021 es un efecto duradero de la pandemia?
+* ¿Qué tipo de libros leen y con qué motivo los lectores de impresos, el arquetipo de mayor edad?
+* ¿Los arquetipos se reproducen con la nueva serie de MOLEC de 2025, que incluye a personas de 12 a 17 años y a todo el país?
+* Con el diseño muestral completo (estratos y conglomerados), ¿se mantienen las conclusiones?
+
+## 4.5 Recomendaciones para nosotros
+
+En retrospectiva, nos recomendaríamos: (1) revisar el diccionario y los códigos especiales antes de limpiar los datos, pues eliminar registros con `na.omit()` sesgó la base de la primera etapa; (2) definir las preguntas e indicadores de la inferencia antes de explorar, en lugar de probar diferencias entre grupos formados con los mismos datos; (3) incorporar el diseño muestral desde el inicio, y (4) revisar los supuestos antes de elegir cada prueba y considerar desde el principio pruebas no paramétricas cuando los datos son muy asimétricos.
 
 # Referencias
 
-Delgado, P., Vargas, C., Ackerman, R., & Salmerón, L. (2018). Don't throw away your printed books: A meta-analysis on the effects of reading media on reading comprehension. *Educational Research Review, 25*, 23–38.
+Delgado, P., Vargas, C., Ackerman, R., & Salmerón, L. (2018). Don't throw away your printed books: A meta-analysis on the effects of reading media on reading comprehension. *Educational Research Review, 25*, 23–38. https://doi.org/10.1016/j.edurev.2018.09.003
 
-Devore, J. L. (2016). *Probabilidad y estadística para ingeniería y ciencias* (9.ª ed.). Cengage Learning.
+Fernández Martínez, M. A. (2025, 30 de septiembre). *Leer menos hoy, rezagos del mañana* [Video]. Cursos de Estadística, Tecnológico de Monterrey.
 
-Fernández Martínez, M. A. (2025, 30 de septiembre). *Leer menos hoy, rezagos del mañana* [Video]. YouTube. Cursos Estadística.
+Hastie, T., Tibshirani, R., & Friedman, J. (2009). *The elements of statistical learning: Data mining, inference, and prediction* (2.ª ed.). Springer. https://doi.org/10.1007/978-0-387-84858-7
 
-Hastie, T., Tibshirani, R., & Friedman, J. (2009). *The elements of statistical learning* (2.ª ed.). Springer.
+Hubert, L., & Arabie, P. (1985). Comparing partitions. *Journal of Classification, 2*(1), 193–218. https://doi.org/10.1007/BF01908075
 
-Hubert, L., & Arabie, P. (1985). Comparing partitions. *Journal of Classification, 2*(1), 193–218.
-
-Instituto Nacional de Estadística y Geografía. (2019–2025). *Módulo sobre Lectura (MOLEC)* [Microdatos, diccionarios y cuestionario]. https://www.inegi.org.mx/programas/molec/
+Instituto Nacional de Estadística y Geografía. (2019–2025). *Módulo sobre Lectura (MOLEC)* [Conjunto de datos: microdatos, diccionarios de datos y cuestionario, levantamientos 2019 a 2025]. https://www.inegi.org.mx/programas/molec/
 
 Instituto Nacional de Estadística y Geografía. (2024). *Módulo sobre Lectura (MOLEC) 2024* (Comunicado de prensa núm. 235/24). https://www.inegi.org.mx/contenidos/saladeprensa/boletines/2024/molec/molec2024.pdf
 
 Instituto Nacional de Estadística y Geografía. (2025). *Módulo sobre Lectura (MOLEC) 2025* (Comunicado de prensa núm. 143/25). https://www.inegi.org.mx/contenidos/saladeprensa/boletines/2025/molec/molec2025_CP.pdf
 
-Kish, L. (1965). *Survey sampling*. Wiley.
+Kish, L. (1965). *Survey sampling*. John Wiley & Sons.
 
 Mol, S. E., & Bus, A. G. (2011). To read or not to read: A meta-analysis of print exposure from infancy to early adulthood. *Psychological Bulletin, 137*(2), 267–296. https://doi.org/10.1037/a0021890
 
 OECD. (2026). *PISA 2025 results (Volume I): Country notes: Mexico*. OECD Publishing. https://www.oecd.org/en/publications/pisa-2025-results-volume-i-country-notes_2d4ff9ea-en/mexico_85702d30-en.html
 
-Rao, J. N. K., & Scott, A. J. (1984). On chi-squared tests for multiway contingency tables with cell proportions estimated from survey data. *The Annals of Statistics, 12*(1), 46–60.
+Rao, J. N. K., & Scott, A. J. (1984). On chi-squared tests for multiway contingency tables with cell proportions estimated from survey data. *The Annals of Statistics, 12*(1), 46–60. https://doi.org/10.1214/aos/1176346391
 
-Rousseeuw, P. J. (1987). Silhouettes: A graphical aid to the interpretation and validation of cluster analysis. *Journal of Computational and Applied Mathematics, 20*, 53–65.
+Rousseeuw, P. J. (1987). Silhouettes: A graphical aid to the interpretation and validation of cluster analysis. *Journal of Computational and Applied Mathematics, 20*, 53–65. https://doi.org/10.1016/0377-0427(87)90125-7
 
-Tecnológico de Monterrey. (s. f.). *Actividades de Pasión por la lectura*. https://tec.mx/es/pasion-por-la-lectura/actividades-de-pasion-por-la-lectura
+Tecnológico de Monterrey. (s. f.). *Actividades de Pasión por la lectura*. Recuperado el 24 de octubre de 2026, de https://tec.mx/es/pasion-por-la-lectura/actividades-de-pasion-por-la-lectura
 
 UNESCO. (2021, 25 de marzo). *100 million more children under the minimum reading proficiency level due to COVID-19: UNESCO convenes world education ministers*. https://www.unesco.org/en/articles/100-million-more-children-under-minimum-reading-proficiency-level-due-covid-19-unesco-convenes-world
-
-**Archivos de trabajo (R Markdown y bases de datos):** https://github.com/vicho-btw/molec-perfiles-lectores (`ReporteFinal.Rmd`, que genera este reporte; `BasePreparada_MOLEC_2019_2024.csv` y `BasePerfiles_MOLEC_2019_2024.csv`).
 
 \newpage
 
@@ -862,9 +834,26 @@ kbl(vars_t, booktabs = TRUE, longtable = TRUE, linesep = "",
   row_spec(25, hline_after = TRUE)
 ```
 
+La Tabla \ref{tab:tabla-calidad} detalla los códigos especiales que se revisaron en el diccionario, su significado y la decisión que se tomó con cada uno.
+
+```{r tabla-calidad}
+# Códigos especiales, su significado y la decisión tomada
+calidad <- tribble(
+  ~`Código encontrado`, ~`Significado (diccionario)`, ~`Decisión`, ~Registros,
+  "p1 = 2", "No sabe leer: el resto del módulo no se aplica", "Se excluye de la población", fmt(q$analf),
+  "nivel = 99", "Escolaridad no especificada", "NA; se conserva el registro", fmt(q$nivel99),
+  "p4, p10, p16 = 0", "Pase: no leyó ese material", "Cero válido (0 libros, revistas…)", paste(fmt(q$p4_0), fmt(q$p10_0), fmt(q$p16_0), sep = " / "),
+  "p26 = 0", "Pase: no lee ningún material", "NA (no aplica) en minutos", fmt(q$p26_0),
+  "p8_1 = 0", "Pase: no leyó libros", "NA (no aplica) en lib_digital", fmt(q$p8_0),
+  "p34_*, p36_* = 3", "No recuerda", "NA", paste(q$nr, collapse = "–"),
+  "p36_* = 0", "Pase: no asistió a la primaria (p35 = 2)", "NA (no aplica)", fmt(q$p36_0),
+  "p4, p10 = 99", "Dentro del rango 01–99 de su año", "Valor válido, atípico; se conserva", fmt(q$n99))
+tabla(calidad, "Códigos especiales revisados en la población alfabeta y decisión tomada.")
+```
+
 # Anexo B. Resultados descriptivos complementarios (Etapa 2)
 
-Este anexo reúne las tablas y gráficas de la Etapa 2 que respaldan la sección 4. La Tabla \ref{tab:anexo-cat} da las frecuencias de las variables categóricas y la Figura \ref{fig:anexo-hist}, las distribuciones de la edad, los libros y los minutos: la edad es casi simétrica, mientras que libros y minutos se concentran en valores bajos con una cola larga a la derecha (y los minutos, en valores redondos como 30 y 60).
+Este anexo reúne las tablas y gráficas de la Etapa 2 que respaldan la sección 3.1. La Tabla \ref{tab:anexo-cat} da las frecuencias de las variables categóricas y la Figura \ref{fig:anexo-hist}, las distribuciones de la edad, los libros y los minutos: la edad es casi simétrica, mientras que libros y minutos se concentran en valores bajos con una cola larga a la derecha (y los minutos, en valores redondos como 30 y 60).
 
 ```{r anexo-cat}
 # Junta varias variables en un bloque de la tabla
@@ -877,6 +866,23 @@ izq <- bloque(c("Tipo de lector", "Escolaridad", "Estímulos en el hogar")); der
 der[nrow(der) + seq_len(nrow(izq) - nrow(der)), ] <- ""
 tabla(cbind(izq, der), "Distribución de frecuencias de las variables categóricas, 2019–2024 (n de la muestra y \\% ponderado; \\% acumulado solo en las ordinales).",
       escape = TRUE, col.names = rep(names(izq), 2), ajustar = TRUE) %>% column_spec(6, border_left = TRUE)
+```
+
+La Figura \ref{fig:fig-cruces} muestra la distribución del tipo de lector dentro de cada nivel de escolaridad y según los estímulos a la lectura en el hogar: la no lectura baja de forma marcada conforme aumentan ambos.
+
+```{r fig-cruces, fig.height=1.75, fig.cap="Distribución ponderada del tipo de lector dentro de cada nivel de escolaridad y según el número de estímulos a la lectura en el hogar durante la infancia (\\% por fila)."}
+# Orden de las filas en la gráfica
+niveles <- c(rev(levels(D$escolaridad)), paste(4:0, "estímulos"))
+# Barras apiladas: tipo de lector por escolaridad y por estímulos en el hogar
+bind_rows(c_esc %>% mutate(Panel = "Escolaridad", Grupo = as.character(Grupo)),
+          c_hog %>% mutate(Panel = "Estímulos a la lectura en el hogar", Grupo = paste(Grupo, "estímulos"))) %>%
+  mutate(Grupo = factor(Grupo, niveles)) %>%
+  ggplot(aes(p, Grupo, fill = tipo_lector)) +
+  geom_col(width = 0.75, colour = "white", linewidth = 0.4, position = position_stack(reverse = TRUE)) +
+  geom_text(aes(label = round(p)), position = position_stack(vjust = 0.5, reverse = TRUE), size = 2.4, colour = "#0b0b0b") +
+  facet_wrap(~ Panel, scales = "free_y") +
+  scale_fill_manual(values = col_tipo) + scale_x_continuous(expand = expansion(mult = c(0, 0.02))) +
+  labs(x = "% del grupo", y = NULL, fill = NULL) + tema
 ```
 
 ```{r anexo-hist, fig.height=1.6, fig.cap="Distribución de la edad, de los libros leídos en 12 meses (lectores de libros; se omiten valores mayores a 30) y de los minutos de lectura (lectores; se omiten valores mayores a 180). Línea continua: mediana; discontinua: media."}
@@ -1047,7 +1053,40 @@ tribble(
   tabla("Pruebas de supuestos y de robustez del ANOVA de log(1 + libros) por escolaridad.")
 ```
 
-**Agrupamiento.** La Tabla \ref{tab:anexo-k} da, para cada número de grupos, la suma de cuadrados dentro de los grupos en el entrenamiento (que baja de forma gradual, sin un "codo" claro), la silueta y la estabilidad en la validación.
+**Zonas de rechazo.** La Figura \ref{fig:fig-rechazo} muestra, para las pruebas 1, 2, 4 y 6, la distribución muestral, la zona de rechazo a partir del valor crítico y el estadístico obtenido; en las pruebas 1, 4 y 6 el estadístico cae dentro de la zona de rechazo, y en la prueba 2, fuera de ella.
+
+```{r fig-rechazo, fig.height=2.9, fig.cap="Distribución muestral, zona de rechazo (rojo, a partir del valor crítico) y estadístico de prueba (azul) de las pruebas 1, 2, 4 y 6. Cuando el estadístico queda fuera de la escala, una flecha indica su valor."}
+# Zona de rechazo (derecha, izquierda o dos colas) y estadístico de prueba
+zona <- function(dens, crit, est, xmin, xmax, titulo, eje, cola = "der") {
+  d <- data.frame(x = seq(xmin, xmax, length.out = 500)); d$y <- dens(d$x)
+  ytop <- max(d$y[d$x >= xmin + 0.05 * (xmax - xmin)])
+  colas <- switch(cola, der = list(d[d$x >= crit, ]), izq = list(d[d$x <= crit, ]), dos = list(d[d$x <= -crit, ], d[d$x >= crit, ]))
+  g <- ggplot(d, aes(x, y)) +
+    lapply(colas, function(t) geom_area(data = t, fill = rojo, alpha = 0.3)) + geom_line(linewidth = 0.5) +
+    coord_cartesian(ylim = c(0, ytop * 1.2)) +
+    geom_vline(xintercept = if (cola == "dos") c(-crit, crit) else crit, colour = rojo, linetype = "22") +
+    annotate("text", x = crit, y = ytop * 1.08, label = paste("crítico =", if (cola == "dos") paste0("±", f2(crit)) else f2(crit)),
+             colour = rojo, hjust = -0.05, size = 2.4) +
+    labs(title = titulo, x = eje, y = NULL) + tema + theme(axis.text.y = element_blank())
+  if (est <= xmax) {
+    g + geom_vline(xintercept = est, colour = azul) +
+      annotate("text", x = est, y = ytop * 0.45, label = paste("estadístico =", f2(est)), colour = azul,
+               hjust = if (est < 0 || est > xmin + 0.6 * (xmax - xmin)) 1.05 else -0.05, size = 2.4)
+  } else {
+    g + annotate("segment", x = xmin + 0.55 * (xmax - xmin), xend = xmax, y = ytop * 0.55, yend = ytop * 0.55,
+                 colour = azul, arrow = arrow(length = unit(0.12, "cm"))) +
+      annotate("text", x = xmax, y = ytop * 0.7, label = paste("estadístico =", f1(est)), colour = azul, hjust = 1, size = 2.4)
+  }
+}
+gridExtra::grid.arrange(
+  zona(dnorm, z_der, zt("no_lee"), -4, 5, "Prueba 1: no lectura (cola derecha)", "z"),
+  zona(dnorm, z_dos, zt("lee_libros"), -4, 4, "Prueba 2: libros (dos colas)", "z", cola = "dos"),
+  zona(function(x) df(x, gl_an[1], gl_an[2]), crit_an, F_an, 0, 3 * crit_an, "Prueba 4: ANOVA de libros por escolaridad", "F"),
+  zona(function(x) dchisq(x, 1), crit_casa, chi_rs, 0, 2.5 * crit_casa, "Prueba 6: libros × libros en casa", expression(chi^2)),
+  ncol = 2)
+```
+
+**Agrupamiento.** La Tabla \ref{tab:anexo-k} da, para cada número de grupos, la suma de cuadrados dentro de los grupos en el entrenamiento (que baja de forma gradual, sin un "codo" claro), la silueta y la estabilidad en la validación; la Figura \ref{fig:fig-k} muestra los dos últimos criterios.
 
 ```{r anexo-k}
 # Criterios para elegir el número de arquetipos
@@ -1055,3 +1094,28 @@ sel_k %>% transmute(k, `Suma de cuadrados (entrenamiento)` = fmt(round(wss)), `S
                     `Estabilidad ARI (validación)` = f2(ari)) %>%
   tabla("Criterios para elegir el número de arquetipos de k-means.")
 ```
+
+```{r fig-k, fig.height=1.45, fig.width=5, fig.align="center", out.width="70%", fig.cap="Selección del número de arquetipos con el conjunto de validación: silueta media y estabilidad (ARI) para k = 2 a 8. La línea vertical marca el valor elegido."}
+# Silueta y estabilidad por número de grupos
+sel_k %>% select(k, Silueta = silueta, `Estabilidad (ARI)` = ari) %>%
+  pivot_longer(-k, names_to = "Criterio", values_to = "valor") %>%
+  ggplot(aes(k, valor, colour = Criterio)) +
+  geom_vline(xintercept = k_sel, linetype = "22", colour = "grey50") +
+  geom_line(linewidth = 0.7) + geom_point(size = 1.6) +
+  scale_colour_manual(values = c(Silueta = azul, `Estabilidad (ARI)` = "#eb6834")) +
+  scale_x_continuous(breaks = 2:8) + scale_y_continuous(limits = c(0, 1)) +
+  labs(x = "Número de arquetipos (k)", y = "Valor", colour = NULL) + tema + theme(legend.position = "right")
+```
+
+
+# Anexo D. Código, datos y declaratoria de uso de inteligencia artificial
+
+**Código y datos.** Todo el análisis se hizo en R. El repositorio https://github.com/vicho-btw/molec-perfiles-lectores contiene `ReporteFinal.Rmd`, que lee los datos, hace todos los cálculos y genera este reporte (el código está comentado por secciones); las bases `BasePreparada_MOLEC_2019_2024.csv` (11,685 personas, 32 variables) y `BasePerfiles_MOLEC_2019_2024.csv` (la misma base con el arquetipo de cada persona); los microdatos y diccionarios originales de INEGI en la carpeta `datos/`, y un archivo README con las instrucciones para reproducir el análisis.
+
+**Declaratoria de uso de inteligencia artificial (Opción B).**
+
+1. *Herramienta:* Claude (Anthropic), mediante Claude Code.
+2. *Uso realizado:* escritura y depuración del código en R (lectura, limpieza e integración de los datos, cálculos, intervalos, pruebas de hipótesis, gráficas y *k-means*), propuesta de técnicas estadísticas y redacción del texto del reporte.
+3. *Secciones donde se utilizó:* todas las secciones del reporte y de los anexos, y el código de `ReporteFinal.Rmd`.
+4. *Validación realizada por los estudiantes:* el equipo definió la pregunta de investigación, el enfoque por arquetipos y la estrategia de fomento; incorporó la retroalimentación de las profesoras en cada etapa; revisó las cifras, tablas y gráficas, y verificó las variables y sus códigos contra los diccionarios de INEGI.
+5. *Confirmación:* los integrantes del equipo revisamos y verificamos el contenido final entregado y asumimos la responsabilidad sobre él.
